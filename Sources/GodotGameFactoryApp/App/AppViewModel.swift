@@ -18,15 +18,19 @@ final class AppViewModel: ObservableObject {
     }
     @Published private(set) var logEntries: [LogEntry]
     @Published var dryRunEnabled = false
+    @Published var presetNameDraft = ""
+    @Published var selectedPresetName = ""
     @Published var selectedPromptKind: CodexPromptKind = .starter
     @Published private(set) var lastCreatedProjectURL: URL?
     @Published private(set) var lastCreatedTemplate: ProjectTemplate?
     @Published private(set) var lastCreatedSummary: ProjectCreationSummary?
     @Published private(set) var recentProjects: [RecentProject]
     @Published private(set) var codexHandoffMessage: String?
+    @Published private(set) var presets: [ProjectPreset]
 
     private let logger: AppLogger
     private let settingsStore: AppSettingsStore
+    private let presetStore: ProjectPresetStore
     private let recentProjectsStore: RecentProjectsStore
     private let generator: ProjectGenerator
     private let gitService: GitService
@@ -45,6 +49,14 @@ final class AppViewModel: ObservableObject {
 
     var hasProjectSummary: Bool {
         lastCreatedSummary != nil
+    }
+
+    var hasPresets: Bool {
+        !presets.isEmpty
+    }
+
+    var selectedPreset: ProjectPreset? {
+        presets.first(where: { $0.name == selectedPresetName })
     }
 
     var hasRecentProjects: Bool {
@@ -85,6 +97,7 @@ final class AppViewModel: ObservableObject {
 
     init(
         settingsStore: AppSettingsStore = AppSettingsStore(),
+        presetStore: ProjectPresetStore = ProjectPresetStore(),
         recentProjectsStore: RecentProjectsStore = RecentProjectsStore(),
         logger: AppLogger = AppLogger(),
         generator: ProjectGenerator = ProjectGenerator(),
@@ -96,6 +109,7 @@ final class AppViewModel: ObservableObject {
         folderPickerService: FolderPickerService = FolderPickerService()
     ) {
         self.settingsStore = settingsStore
+        self.presetStore = presetStore
         self.recentProjectsStore = recentProjectsStore
         self.logger = logger
         self.generator = generator
@@ -106,8 +120,10 @@ final class AppViewModel: ObservableObject {
         self.codexHandoffService = codexHandoffService
         self.folderPickerService = folderPickerService
         self.settings = settingsStore.load()
+        self.presets = presetStore.load()
         self.recentProjects = recentProjectsStore.load()
         self.logEntries = logger.entries
+        self.selectedPresetName = presets.first?.name ?? ""
 
         log("App initialized")
         log(self.settings == AppSettings.default ? "Using default settings" : "Loaded saved settings")
@@ -117,6 +133,9 @@ final class AppViewModel: ObservableObject {
         log("New Project form ready")
         if !recentProjects.isEmpty {
             log("Loaded \(recentProjects.count) recent projects")
+        }
+        if !presets.isEmpty {
+            log("Loaded \(presets.count) presets")
         }
         hasFinishedInitializing = true
     }
@@ -276,6 +295,52 @@ final class AppViewModel: ObservableObject {
         }
 
         settings.baseDirectory = selectedFolderURL.path
+    }
+
+    func saveCurrentAsPreset() {
+        let trimmedName = presetNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmedName.isEmpty else {
+            log("Preset save blocked: preset name is required")
+            return
+        }
+
+        let saveResult = presetStore.savePreset(named: trimmedName, from: settings)
+        presets = saveResult.presets
+        selectedPresetName = saveResult.preset.name
+        presetNameDraft = saveResult.preset.name
+
+        if saveResult.wasRenamed {
+            log("Preset name already existed. Saved as '\(saveResult.preset.name)'.")
+        } else {
+            log("Saved preset '\(saveResult.preset.name)'.")
+        }
+    }
+
+    func applySelectedPreset() {
+        guard let selectedPreset else {
+            log("Preset apply skipped: no preset is selected.")
+            return
+        }
+
+        settings = selectedPreset.applying(to: settings)
+        presetNameDraft = selectedPreset.name
+        log("Applied preset '\(selectedPreset.name)'.")
+    }
+
+    func deleteSelectedPreset() {
+        guard !selectedPresetName.isEmpty else {
+            log("Preset delete skipped: no preset is selected.")
+            return
+        }
+
+        let deletedPresetName = selectedPresetName
+        presets = presetStore.deletePreset(named: deletedPresetName)
+        selectedPresetName = presets.first?.name ?? ""
+        if presetNameDraft == deletedPresetName {
+            presetNameDraft = ""
+        }
+        log("Deleted preset '\(deletedPresetName)'.")
     }
 
     private func log(_ message: String) {

@@ -20,6 +20,7 @@ struct MainView: View {
                 Text("Configure a new project. Use Dry Run or Preview Plan to inspect exactly what would happen before any files are written.")
                     .foregroundStyle(.secondary)
 
+                PresetsView(viewModel: viewModel)
                 NewProjectFormView(viewModel: viewModel)
                 ProjectSummaryView(viewModel: viewModel)
                 PromptPackView(viewModel: viewModel)
@@ -30,6 +31,42 @@ struct MainView: View {
                 LogPanelView(entries: viewModel.logEntries)
             }
             .padding(24)
+        }
+    }
+}
+
+private struct PresetsView: View {
+    @ObservedObject var viewModel: AppViewModel
+
+    var body: some View {
+        GroupBox("Presets") {
+            VStack(alignment: .leading, spacing: 14) {
+                TextField("Preset Name", text: $viewModel.presetNameDraft)
+
+                Picker("Saved Preset", selection: $viewModel.selectedPresetName) {
+                    Text("Select a preset").tag("")
+                    ForEach(viewModel.presets) { preset in
+                        Text(preset.name).tag(preset.name)
+                    }
+                }
+
+                HStack {
+                    Button("Save Current as Preset") {
+                        viewModel.saveCurrentAsPreset()
+                    }
+
+                    Button("Apply Preset") {
+                        viewModel.applySelectedPreset()
+                    }
+                    .disabled(!viewModel.hasPresets || viewModel.selectedPreset == nil)
+
+                    Button("Delete Preset") {
+                        viewModel.deleteSelectedPreset()
+                    }
+                    .disabled(!viewModel.hasPresets || viewModel.selectedPreset == nil)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
