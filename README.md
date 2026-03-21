@@ -104,9 +104,12 @@ What is already working:
 - optional GitHub setup through `gh`
 - settings persistence
 - dry-run / preview mode
-- post-create actions for the last real project
+- post-create summary, status, and export actions
+- recent projects with persistence
+- reusable presets
+- Open in Codex handoff
 - lightweight templates
-- generated project `AGENTS.md`, `run_validation.sh`, and Codex starter prompt support
+- generated project `AGENTS.md`, `run_validation.sh`, and template-aware Codex prompt support
 
 ## Current implementation
 

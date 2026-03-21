@@ -12,25 +12,28 @@ struct MainView: View {
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 200)
         } detail: {
-            VStack(alignment: .leading, spacing: 20) {
-                Text("Godot Game Factory")
-                    .font(.largeTitle)
-                    .fontWeight(.semibold)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("Godot Game Factory")
+                        .font(.largeTitle)
+                        .fontWeight(.semibold)
 
-                Text("Configure a new project. Use Dry Run or Preview Plan to inspect exactly what would happen before any files are written.")
-                    .foregroundStyle(.secondary)
+                    Text("Create a Godot project scaffold, inspect the plan first when needed, and keep the generated workflow easy to continue in Codex.")
+                        .foregroundStyle(.secondary)
 
-                PresetsView(viewModel: viewModel)
-                NewProjectFormView(viewModel: viewModel)
-                ProjectSummaryView(viewModel: viewModel)
-                PromptPackView(viewModel: viewModel)
-                PostCreateActionsView(viewModel: viewModel)
-                CodexHandoffStatusView(viewModel: viewModel)
-                RecentProjectsView(viewModel: viewModel)
+                    PresetsView(viewModel: viewModel)
+                    NewProjectFormView(viewModel: viewModel)
+                    ProjectSummaryView(viewModel: viewModel)
+                    PromptPackView(viewModel: viewModel)
+                    PostCreateActionsView(viewModel: viewModel)
+                    CodexHandoffStatusView(viewModel: viewModel)
+                    RecentProjectsView(viewModel: viewModel)
 
-                LogPanelView(entries: viewModel.logEntries)
+                    LogPanelView(entries: viewModel.logEntries)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(24)
             }
-            .padding(24)
         }
     }
 }
@@ -41,6 +44,9 @@ private struct PresetsView: View {
     var body: some View {
         GroupBox("Presets") {
             VStack(alignment: .leading, spacing: 14) {
+                Text("Save reusable creation defaults for base directory, GitHub settings, visibility, and template.")
+                    .foregroundStyle(.secondary)
+
                 TextField("Preset Name", text: $viewModel.presetNameDraft)
 
                 Picker("Saved Preset", selection: $viewModel.selectedPresetName) {
@@ -54,6 +60,7 @@ private struct PresetsView: View {
                     Button("Save Current as Preset") {
                         viewModel.saveCurrentAsPreset()
                     }
+                    .disabled(!viewModel.canSavePreset)
 
                     Button("Apply Preset") {
                         viewModel.applySelectedPreset()
@@ -65,6 +72,10 @@ private struct PresetsView: View {
                     }
                     .disabled(!viewModel.hasPresets || viewModel.selectedPreset == nil)
                 }
+
+                if !viewModel.hasPresets {
+                    EmptyStateText("No presets saved yet. Save the current form when you have a setup you want to reuse.")
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -75,11 +86,13 @@ private struct CodexHandoffStatusView: View {
     @ObservedObject var viewModel: AppViewModel
 
     var body: some View {
-        if let message = viewModel.codexHandoffMessage {
-            GroupBox("Codex Handoff") {
+        GroupBox("Codex Handoff") {
+            if let message = viewModel.codexHandoffMessage {
                 Text(message)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                EmptyStateText("Use Open in Codex from the last created project or a recent project to copy the starter prompt and open the folder for the next session.")
             }
         }
     }
@@ -89,9 +102,12 @@ private struct RecentProjectsView: View {
     @ObservedObject var viewModel: AppViewModel
 
     var body: some View {
-        if viewModel.hasRecentProjects {
-            GroupBox("Recent Projects") {
-                VStack(alignment: .leading, spacing: 14) {
+        GroupBox("Recent Projects") {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Recently created real projects are kept here for quick reuse across sessions.")
+                    .foregroundStyle(.secondary)
+
+                if viewModel.hasRecentProjects {
                     ForEach(viewModel.recentProjects) { project in
                         VStack(alignment: .leading, spacing: 8) {
                             HStack(alignment: .top) {
@@ -110,7 +126,7 @@ private struct RecentProjectsView: View {
                             }
 
                             Text("Template: \(project.template.rawValue)")
-                            Text("Git: \(project.gitInitialized ? "Ready" : "Not initialized")")
+                            Text("Git: \(project.gitInitialized ? "Ready" : "Needs attention")")
                             Text("GitHub: \(project.gitHubStatus.displayText)")
 
                             HStack {
@@ -129,9 +145,11 @@ private struct RecentProjectsView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                } else {
+                    EmptyStateText("No recent projects yet. Real project creations will appear here after generation completes.")
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
@@ -140,9 +158,12 @@ private struct PromptPackView: View {
     @ObservedObject var viewModel: AppViewModel
 
     var body: some View {
-        if viewModel.hasPromptPack, let selectedPrompt = viewModel.selectedPrompt {
-            GroupBox("Codex Prompt Pack") {
+        GroupBox("Codex Prompt Pack") {
+            if viewModel.hasPromptPack, let selectedPrompt = viewModel.selectedPrompt {
                 VStack(alignment: .leading, spacing: 14) {
+                    Text("Use these template-aware prompts after a real project has been created.")
+                        .foregroundStyle(.secondary)
+
                     Picker("Prompt", selection: $viewModel.selectedPromptKind) {
                         ForEach(viewModel.availablePromptPack) { prompt in
                             Text(prompt.title).tag(prompt.kind)
@@ -165,6 +186,8 @@ private struct PromptPackView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                EmptyStateText("No prompt pack yet. Create a real project first to unlock template-aware Codex prompts.")
             }
         }
     }
@@ -209,8 +232,8 @@ private struct ProjectSummaryView: View {
     @ObservedObject var viewModel: AppViewModel
 
     var body: some View {
-        if let summary = viewModel.lastCreatedSummary {
-            GroupBox("Project Summary") {
+        GroupBox("Project Summary") {
+            if let summary = viewModel.lastCreatedSummary {
                 VStack(alignment: .leading, spacing: 14) {
                     summaryRow(label: "Project", value: summary.projectName)
                     summaryRow(label: "Path", value: summary.finalProjectURL.path, selectable: true)
@@ -240,6 +263,8 @@ private struct ProjectSummaryView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                EmptyStateText("No project summary yet. Create a real project to see the final path, template, integration status, and workflow files here.")
             }
         }
     }
@@ -265,6 +290,9 @@ private struct PostCreateActionsView: View {
     var body: some View {
         GroupBox("Last Created Project") {
             VStack(alignment: .leading, spacing: 14) {
+                Text("Use these actions after a real project has been created.")
+                    .foregroundStyle(.secondary)
+
                 Text(viewModel.lastCreatedProjectPath)
                     .textSelection(.enabled)
                     .foregroundStyle(viewModel.hasLastCreatedProject ? .primary : .secondary)
@@ -290,7 +318,7 @@ private struct PostCreateActionsView: View {
                     }
                     .disabled(!viewModel.hasLastCreatedProject)
 
-                    Button("Copy Codex Starter Prompt") {
+                    Button("Copy Starter Prompt") {
                         viewModel.copyLastCreatedCodexStarterPrompt()
                     }
                     .disabled(!viewModel.hasLastCreatedProject)
@@ -307,6 +335,9 @@ private struct NewProjectFormView: View {
     var body: some View {
         GroupBox("New Project") {
             VStack(alignment: .leading, spacing: 14) {
+                Text("Required fields: project name and base directory. Everything else can be adjusted later.")
+                    .foregroundStyle(.secondary)
+
                 TextField("Project Name", text: $viewModel.settings.projectName)
 
                 HStack(alignment: .center, spacing: 12) {
@@ -338,15 +369,31 @@ private struct NewProjectFormView: View {
                     Button("Preview Plan") {
                         viewModel.previewProject()
                     }
+                    .disabled(!viewModel.canPreviewOrCreateProject)
 
                     Spacer()
                     Button(viewModel.dryRunEnabled ? "Run Dry Preview" : "Create Project") {
                         viewModel.createProject()
                     }
                     .keyboardShortcut(.defaultAction)
+                    .disabled(!viewModel.canPreviewOrCreateProject)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+}
+
+private struct EmptyStateText: View {
+    let message: String
+
+    init(_ message: String) {
+        self.message = message
+    }
+
+    var body: some View {
+        Text(message)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

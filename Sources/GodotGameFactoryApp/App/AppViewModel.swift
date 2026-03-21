@@ -47,6 +47,11 @@ final class AppViewModel: ObservableObject {
         lastCreatedProjectURL != nil
     }
 
+    var canPreviewOrCreateProject: Bool {
+        !settings.projectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !settings.baseDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var hasProjectSummary: Bool {
         lastCreatedSummary != nil
     }
@@ -89,6 +94,10 @@ final class AppViewModel: ObservableObject {
 
     var hasPromptPack: Bool {
         !availablePromptPack.isEmpty
+    }
+
+    var canSavePreset: Bool {
+        !presetNameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var selectedPrompt: CodexPrompt? {

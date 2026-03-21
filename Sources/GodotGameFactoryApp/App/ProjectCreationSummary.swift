@@ -180,7 +180,7 @@ enum ProjectIntegrationStatus: Equatable, Codable {
     var shortDetail: String {
         switch self {
         case .succeeded:
-            return "Completed"
+            return "Setup completed"
         case let .skipped(reason), let .failed(reason):
             return reason
         }
