@@ -259,6 +259,18 @@ final class AppViewModel: ObservableObject {
         ).body
     }
 
+    var activeCodexStarterPrompt: String? {
+        guard let activeProjectURL, let activeProjectTemplate else {
+            return nil
+        }
+
+        return codexPromptPackService.starterPrompt(
+            for: activeProjectURL,
+            template: activeProjectTemplate,
+            workflowSettings: workflowSettingsForProject(activeProjectURL, template: activeProjectTemplate)
+        ).body
+    }
+
     var lastCreatedSummaryText: String? {
         lastCreatedSummary?.summaryText
     }
@@ -927,6 +939,26 @@ final class AppViewModel: ObservableObject {
             for: lastCreatedProjectURL,
             template: lastCreatedTemplate,
             workflowSettings: workflowSettingsForProject(lastCreatedProjectURL, template: lastCreatedTemplate)
+        )
+
+        switch postCreateActionService.copyPrompt(prompt.body, title: prompt.title) {
+        case let .success(message):
+            log(message)
+        case let .failure(error):
+            log("Prompt action failed: \(error.localizedDescription)")
+        }
+    }
+
+    func copyActiveCodexStarterPrompt() {
+        guard let activeProjectURL, let activeProjectTemplate else {
+            log("Prompt action skipped: no prompt pack is available yet.")
+            return
+        }
+
+        let prompt = codexPromptPackService.starterPrompt(
+            for: activeProjectURL,
+            template: activeProjectTemplate,
+            workflowSettings: workflowSettingsForProject(activeProjectURL, template: activeProjectTemplate)
         )
 
         switch postCreateActionService.copyPrompt(prompt.body, title: prompt.title) {

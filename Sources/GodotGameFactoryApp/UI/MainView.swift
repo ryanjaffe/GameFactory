@@ -462,7 +462,7 @@ private struct PromptPackView: View {
                         }
 
                         Button("Copy Starter Prompt") {
-                            viewModel.copyLastCreatedCodexStarterPrompt()
+                            viewModel.copyActiveCodexStarterPrompt()
                         }
                     }
                 }
