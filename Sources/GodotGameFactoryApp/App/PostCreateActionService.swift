@@ -57,6 +57,10 @@ struct PostCreateActionService {
         copyText(fileTreeText, successMessage: "Copied project file tree.")
     }
 
+    func copyHandoffBundle(_ bundleText: String) -> Result<String, Error> {
+        copyText(bundleText, successMessage: "Copied handoff bundle.")
+    }
+
     func copyPrompt(_ promptText: String, title: String) -> Result<String, Error> {
         copyText(promptText, successMessage: "Copied \(title.lowercased()).")
     }

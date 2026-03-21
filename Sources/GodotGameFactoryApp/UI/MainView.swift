@@ -26,6 +26,7 @@ struct MainView: View {
                     ProjectInspectorView(viewModel: viewModel)
                     ProjectAuditView(viewModel: viewModel)
                     AssetImportView(viewModel: viewModel)
+                    HandoffBundleView(viewModel: viewModel)
                     ProjectSummaryView(viewModel: viewModel)
                     WorkflowFilesView(viewModel: viewModel)
                     PromptPackView(viewModel: viewModel)
@@ -38,6 +39,37 @@ struct MainView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(24)
             }
+        }
+    }
+}
+
+private struct HandoffBundleView: View {
+    @ObservedObject var viewModel: AppViewModel
+
+    var body: some View {
+        GroupBox("Handoff Bundle") {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Copy a concise handoff package with project summary, file tree, audit state, asset import info, and the starter prompt.")
+                    .foregroundStyle(.secondary)
+
+                if let activeProjectURL = viewModel.activeProjectURL {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Active Project")
+                            .fontWeight(.medium)
+                        Text(viewModel.activeProjectName)
+                        Text(activeProjectURL.path)
+                            .textSelection(.enabled)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Button("Copy Handoff Bundle") {
+                        viewModel.copyHandoffBundle()
+                    }
+                } else {
+                    EmptyStateText("No active project yet. Create, inspect, or select a project before exporting a handoff bundle.")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

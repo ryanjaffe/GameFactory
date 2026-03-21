@@ -57,6 +57,7 @@ final class AppViewModel: ObservableObject {
     private let projectAuditService: ProjectAuditService
     private let assetImportPickerService: AssetImportPickerService
     private let assetImportService: AssetImportService
+    private let handoffBundleService: HandoffBundleService
     private let workflowFileService: WorkflowFileService
     private var hasFinishedInitializing = false
     private var hasLoggedSaveFailure = false
@@ -98,6 +99,10 @@ final class AppViewModel: ObservableObject {
 
     var hasAssetImportSummary: Bool {
         lastAssetImport != nil
+    }
+
+    var hasHandoffBundleTarget: Bool {
+        activeProjectURL != nil
     }
 
     var workflowFileTargetProjectURL: URL? {
@@ -146,6 +151,10 @@ final class AppViewModel: ObservableObject {
         }
 
         return inspectedProjectSummary?.detectedTemplate ?? lastCreatedTemplate
+    }
+
+    var activeHandoffBundleText: String? {
+        buildHandoffBundleText()
     }
 
     var hasWorkflowFileTarget: Bool {
@@ -223,6 +232,7 @@ final class AppViewModel: ObservableObject {
         projectAuditService: ProjectAuditService = ProjectAuditService(),
         assetImportPickerService: AssetImportPickerService = AssetImportPickerService(),
         assetImportService: AssetImportService = AssetImportService(),
+        handoffBundleService: HandoffBundleService = HandoffBundleService(),
         workflowFileService: WorkflowFileService = WorkflowFileService()
     ) {
         self.settingsStore = settingsStore
@@ -243,6 +253,7 @@ final class AppViewModel: ObservableObject {
         self.projectAuditService = projectAuditService
         self.assetImportPickerService = assetImportPickerService
         self.assetImportService = assetImportService
+        self.handoffBundleService = handoffBundleService
         self.workflowFileService = workflowFileService
         self.settings = settingsStore.load()
         self.presets = presetStore.load()
@@ -585,6 +596,20 @@ final class AppViewModel: ObservableObject {
             }
         } catch {
             log("Asset import failed: \(error.localizedDescription)")
+        }
+    }
+
+    func copyHandoffBundle() {
+        guard let bundleText = buildHandoffBundleText() else {
+            log("Handoff bundle skipped: no project is selected.")
+            return
+        }
+
+        switch postCreateActionService.copyHandoffBundle(bundleText) {
+        case let .success(message):
+            log(message)
+        case let .failure(error):
+            log("Handoff bundle failed: \(error.localizedDescription)")
         }
     }
 
@@ -938,6 +963,110 @@ final class AppViewModel: ObservableObject {
         lastAssetImport = nil
     }
 
+    private func buildHandoffBundleText() -> String? {
+        guard let activeProjectURL else {
+            return nil
+        }
+
+        let inspectedSummary = projectInspectorService.inspectProject(at: activeProjectURL)
+        let template = activeProjectTemplate ?? inspectedSummary.detectedTemplate
+        let starterPrompt = codexPromptPackService.starterPrompt(
+            for: activeProjectURL,
+            template: template ?? .blank
+        ).body
+
+        let workflowFiles = [
+            inspectedSummary.hasAgentsFile ? "AGENTS.md" : nil,
+            inspectedSummary.hasReadmeFile ? "README.md" : nil,
+            inspectedSummary.hasValidationScript ? "run_validation.sh" : nil,
+        ].compactMap { $0 }
+
+        let input = HandoffBundleInput(
+            projectName: activeProjectName,
+            projectPath: activeProjectURL.path,
+            templateName: template?.rawValue ?? "Unknown",
+            gitStatus: activeGitStatusDescription(from: inspectedSummary),
+            gitHubStatus: activeGitHubStatusDescription(from: inspectedSummary),
+            workflowFiles: workflowFiles,
+            fileTreeText: inspectedSummary.fileTreeText,
+            auditSummaryText: relevantAuditSummaryText(for: activeProjectURL),
+            assetImportSummaryText: relevantAssetImportSummaryText(for: activeProjectURL),
+            starterPrompt: starterPrompt,
+            nextSteps: handoffNextSteps(for: inspectedSummary, template: template)
+        )
+
+        return handoffBundleService.buildBundle(from: input)
+    }
+
+    private func activeGitStatusDescription(from inspectedSummary: InspectedProjectSummary) -> String {
+        if let recentProject = activeRecentProject {
+            return recentProject.gitInitialized ? "Ready" : "Warn (missing .git)"
+        }
+
+        if activeProjectURL == lastCreatedProjectURL, let lastCreatedSummary {
+            return lastCreatedSummary.gitStatus.displayText
+        }
+
+        return inspectedSummary.hasGitDirectory ? "Ready" : "Warn (missing .git)"
+    }
+
+    private func activeGitHubStatusDescription(from inspectedSummary: InspectedProjectSummary) -> String {
+        if let recentProject = activeRecentProject {
+            return recentProject.gitHubStatus.displayText
+        }
+
+        if activeProjectURL == lastCreatedProjectURL, let lastCreatedSummary {
+            return lastCreatedSummary.gitHubStatus.displayText
+        }
+
+        switch inspectedSummary.originRemoteStatus {
+        case let .present(remoteURL):
+            return "Origin present (\(remoteURL))"
+        case .absent:
+            return "Origin missing"
+        case let .unknown(reason):
+            return "Origin unknown (\(reason))"
+        }
+    }
+
+    private func relevantAuditSummaryText(for projectURL: URL) -> String? {
+        guard lastProjectAudit?.projectURL == projectURL else {
+            return nil
+        }
+
+        return lastProjectAudit?.summaryText
+    }
+
+    private func relevantAssetImportSummaryText(for projectURL: URL) -> String? {
+        guard lastAssetImport?.projectURL == projectURL else {
+            return nil
+        }
+
+        return lastAssetImport?.summaryText
+    }
+
+    private func handoffNextSteps(for inspectedSummary: InspectedProjectSummary, template: ProjectTemplate?) -> [String] {
+        var steps = ["Read `AGENTS.md` first if it is present.", "Run `./run_validation.sh` after the first change if it is available."]
+
+        if !inspectedSummary.hasAgentsFile {
+            steps.append("Add or restore `AGENTS.md` before a Codex handoff.")
+        }
+
+        if !inspectedSummary.hasValidationScript {
+            steps.append("Restore `run_validation.sh` before handing the project off.")
+        }
+
+        if !inspectedSummary.hasGitDirectory {
+            steps.append("Initialize Git if this project should be tracked.")
+        }
+
+        if template == nil {
+            steps.append("Template is unknown, so review the scaffold manually before editing.")
+        }
+
+        return steps
+    }
+
     private var explicitWorkflowSelectionURL: URL? {
         guard let selectedWorkflowProjectURL else {
             return nil
@@ -948,5 +1077,13 @@ final class AppViewModel: ObservableObject {
         }
 
         return selectedWorkflowProjectURL
+    }
+
+    private var activeRecentProject: RecentProject? {
+        guard let explicitWorkflowSelectionURL else {
+            return nil
+        }
+
+        return recentProjects.first(where: { $0.path == explicitWorkflowSelectionURL.path })
     }
 }
