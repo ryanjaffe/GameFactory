@@ -113,3 +113,54 @@ This document is a manual smoke-test checklist for Godot Game Factory.
 - Open `run_validation.sh` and confirm it references the selected template and starter scene where applicable.
 - Run `./run_validation.sh` and confirm it writes to `artifacts/validation.log`.
 - Confirm `README.md` includes template-specific notes.
+
+## Workflow File Editor And Repair
+
+- Open `AGENTS.md`, `README.md`, and `run_validation.sh` in the built-in editor.
+- Confirm file contents load from disk.
+- Edit a file and confirm changes are not saved until `Save` is pressed.
+- Use `Revert` and confirm the disk version is restored.
+- Remove one workflow file and confirm the repair / restore-default action recreates it.
+- Confirm regenerated `run_validation.sh` is executable.
+
+## Workflow Settings
+
+- Open `Workflow Settings` for an active project.
+- Confirm sensible defaults are shown when `gamefactory.workflow.json` does not exist.
+- Save workflow settings and confirm `gamefactory.workflow.json` is written.
+- Change a field, use `Revert`, and confirm the saved disk state reloads.
+- Confirm a saved `godotPathOverride` is used before the app-level Godot path.
+
+## Project Inspector And Audit
+
+- Open an existing valid project with `Open Existing Project`.
+- Confirm inspector fields reflect project files, directories, Git state, and template detection.
+- Open a folder missing `project.godot` and confirm the inspector reports it clearly.
+- Run `Project Audit` on a healthy project and confirm it shows pass/warn/fail rows.
+- Remove `run_validation.sh` or a template-specific starter file and confirm the audit reports the issue.
+
+## Asset Import And Starter Packs
+
+- Import one or more files into an active project and confirm they are copied into `art/`.
+- Confirm source files are not moved or modified.
+- Import a duplicate filename and confirm a safe suffixed name is used.
+- Apply at least one built-in asset starter pack and confirm files are added under `art/`.
+- Confirm the latest asset summary reflects the imported files or starter pack.
+
+## Open In Godot
+
+- Set an app-level Godot path and confirm `Open in Godot` uses it.
+- Save a project-local `godotPathOverride` and confirm it takes precedence over the app-level path.
+- Clear both and confirm the fallback launch strategy is used.
+- Confirm an invalid Godot path fails gracefully.
+
+## Handoff Bundle
+
+- Copy a handoff bundle for an active project.
+- Confirm it includes:
+  - project summary
+  - concise file tree
+  - audit summary when available
+  - workflow settings summary when available
+  - asset context when available
+  - starter prompt
