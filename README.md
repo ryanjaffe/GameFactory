@@ -94,6 +94,27 @@ Some features depend on local tools being installed:
 
 The app should detect missing tools and provide helpful next steps instead of failing silently.
 
-## Status
+## Current implementation
 
-This project is currently focused on building a small, reliable MVP first.
+The repository now contains a minimal native macOS app scaffold built with SwiftUI and Swift Package Manager.
+
+Current architecture modules:
+
+- `Sources/GodotGameFactoryApp/App` for app entry and top-level state
+- `Sources/GodotGameFactoryApp/UI` for SwiftUI views
+- `Sources/GodotGameFactoryApp/Settings` for persisted user settings models
+- `Sources/GodotGameFactoryApp/Generation` for project scaffold generation
+- `Sources/GodotGameFactoryApp/Integrations` for Git and GitHub integrations
+- `Sources/GodotGameFactoryApp/Logging` for visible app logging
+
+This is intentionally the smallest runnable starting point for the MVP.
+
+## Run locally
+
+From the repository root:
+
+```bash
+swift run
+```
+
+The next implementation steps are wiring the New Project form, project generation flow, and subprocess integrations.

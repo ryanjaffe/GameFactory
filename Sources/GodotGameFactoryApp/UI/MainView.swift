@@ -1,0 +1,112 @@
+import SwiftUI
+
+struct MainView: View {
+    @ObservedObject var viewModel: AppViewModel
+
+    var body: some View {
+        NavigationSplitView {
+            List {
+                Label("New Project", systemImage: "hammer")
+                Label("Settings", systemImage: "gearshape")
+                Label("Logs", systemImage: "text.append")
+            }
+            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
+        } detail: {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("Godot Game Factory")
+                    .font(.largeTitle)
+                    .fontWeight(.semibold)
+
+                Text("Configure a new project. Use Dry Run or Preview Plan to inspect exactly what would happen before any files are written.")
+                    .foregroundStyle(.secondary)
+
+                NewProjectFormView(viewModel: viewModel)
+                PostCreateActionsView(viewModel: viewModel)
+
+                LogPanelView(entries: viewModel.logEntries)
+            }
+            .padding(24)
+        }
+    }
+}
+
+private struct PostCreateActionsView: View {
+    @ObservedObject var viewModel: AppViewModel
+
+    var body: some View {
+        GroupBox("Last Created Project") {
+            VStack(alignment: .leading, spacing: 14) {
+                Text(viewModel.lastCreatedProjectPath)
+                    .textSelection(.enabled)
+                    .foregroundStyle(viewModel.hasLastCreatedProject ? .primary : .secondary)
+
+                HStack {
+                    Button("Open in Finder") {
+                        viewModel.openLastCreatedProjectInFinder()
+                    }
+                    .disabled(!viewModel.hasLastCreatedProject)
+
+                    Button("Copy Project Path") {
+                        viewModel.copyLastCreatedProjectPath()
+                    }
+                    .disabled(!viewModel.hasLastCreatedProject)
+
+                    Button("Open in Terminal") {
+                        viewModel.openLastCreatedProjectInTerminal()
+                    }
+                    .disabled(!viewModel.hasLastCreatedProject)
+
+                    Button("Copy Codex Starter Prompt") {
+                        viewModel.copyLastCreatedCodexStarterPrompt()
+                    }
+                    .disabled(!viewModel.hasLastCreatedProject)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+private struct NewProjectFormView: View {
+    @ObservedObject var viewModel: AppViewModel
+
+    var body: some View {
+        GroupBox("New Project") {
+            VStack(alignment: .leading, spacing: 14) {
+                TextField("Project Name", text: $viewModel.settings.projectName)
+
+                TextField("Base Directory", text: $viewModel.settings.baseDirectory)
+
+                TextField("GitHub Username", text: $viewModel.settings.gitHubUsername)
+
+                Picker("Repo Visibility", selection: $viewModel.settings.repoVisibility) {
+                    ForEach(RepoVisibility.allCases) { visibility in
+                        Text(visibility.rawValue).tag(visibility)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Picker("Template", selection: $viewModel.settings.template) {
+                    ForEach(ProjectTemplate.allCases) { template in
+                        Text(template.rawValue).tag(template)
+                    }
+                }
+
+                Toggle("Dry Run", isOn: $viewModel.dryRunEnabled)
+
+                HStack {
+                    Button("Preview Plan") {
+                        viewModel.previewProject()
+                    }
+
+                    Spacer()
+                    Button(viewModel.dryRunEnabled ? "Run Dry Preview" : "Create Project") {
+                        viewModel.createProject()
+                    }
+                    .keyboardShortcut(.defaultAction)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
