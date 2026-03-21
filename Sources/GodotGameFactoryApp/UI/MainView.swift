@@ -22,11 +22,46 @@ struct MainView: View {
 
                 NewProjectFormView(viewModel: viewModel)
                 ProjectSummaryView(viewModel: viewModel)
+                PromptPackView(viewModel: viewModel)
                 PostCreateActionsView(viewModel: viewModel)
 
                 LogPanelView(entries: viewModel.logEntries)
             }
             .padding(24)
+        }
+    }
+}
+
+private struct PromptPackView: View {
+    @ObservedObject var viewModel: AppViewModel
+
+    var body: some View {
+        if viewModel.hasPromptPack, let selectedPrompt = viewModel.selectedPrompt {
+            GroupBox("Codex Prompt Pack") {
+                VStack(alignment: .leading, spacing: 14) {
+                    Picker("Prompt", selection: $viewModel.selectedPromptKind) {
+                        ForEach(viewModel.availablePromptPack) { prompt in
+                            Text(prompt.title).tag(prompt.kind)
+                        }
+                    }
+
+                    Text(selectedPrompt.body)
+                        .textSelection(.enabled)
+                        .font(.callout)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    HStack {
+                        Button("Copy Prompt") {
+                            viewModel.copySelectedPrompt()
+                        }
+
+                        Button("Copy Starter Prompt") {
+                            viewModel.copyLastCreatedCodexStarterPrompt()
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 }

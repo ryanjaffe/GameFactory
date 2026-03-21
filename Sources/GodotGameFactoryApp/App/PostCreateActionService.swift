@@ -57,6 +57,10 @@ struct PostCreateActionService {
         copyText(fileTreeText, successMessage: "Copied project file tree.")
     }
 
+    func copyPrompt(_ promptText: String, title: String) -> Result<String, Error> {
+        copyText(promptText, successMessage: "Copied \(title.lowercased()).")
+    }
+
     func starterPrompt(for projectURL: URL, template: ProjectTemplate) -> String {
         let validationTarget = ProjectTemplateSupport.validationTarget(for: template) ?? "no starter scene is configured yet"
         return """

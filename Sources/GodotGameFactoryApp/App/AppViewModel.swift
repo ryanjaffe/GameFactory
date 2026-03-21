@@ -18,6 +18,7 @@ final class AppViewModel: ObservableObject {
     }
     @Published private(set) var logEntries: [LogEntry]
     @Published var dryRunEnabled = false
+    @Published var selectedPromptKind: CodexPromptKind = .starter
     @Published private(set) var lastCreatedProjectURL: URL?
     @Published private(set) var lastCreatedTemplate: ProjectTemplate?
     @Published private(set) var lastCreatedSummary: ProjectCreationSummary?
@@ -28,6 +29,7 @@ final class AppViewModel: ObservableObject {
     private let gitService: GitService
     private let gitHubService: GitHubService
     private let postCreateActionService: PostCreateActionService
+    private let codexPromptPackService: CodexPromptPackService
     private var hasFinishedInitializing = false
     private var hasLoggedSaveFailure = false
     private var hasSavedSettings = false
@@ -45,11 +47,7 @@ final class AppViewModel: ObservableObject {
     }
 
     var lastCreatedCodexStarterPrompt: String? {
-        guard let lastCreatedProjectURL, let lastCreatedTemplate else {
-            return nil
-        }
-
-        return postCreateActionService.starterPrompt(for: lastCreatedProjectURL, template: lastCreatedTemplate)
+        prompt(for: .starter)?.body
     }
 
     var lastCreatedSummaryText: String? {
@@ -60,13 +58,30 @@ final class AppViewModel: ObservableObject {
         lastCreatedSummary?.fileTreeText
     }
 
+    var availablePromptPack: [CodexPrompt] {
+        guard let lastCreatedProjectURL, let lastCreatedTemplate else {
+            return []
+        }
+
+        return codexPromptPackService.promptPack(for: lastCreatedProjectURL, template: lastCreatedTemplate)
+    }
+
+    var hasPromptPack: Bool {
+        !availablePromptPack.isEmpty
+    }
+
+    var selectedPrompt: CodexPrompt? {
+        availablePromptPack.first(where: { $0.kind == selectedPromptKind }) ?? availablePromptPack.first
+    }
+
     init(
         settingsStore: AppSettingsStore = AppSettingsStore(),
         logger: AppLogger = AppLogger(),
         generator: ProjectGenerator = ProjectGenerator(),
         gitService: GitService = GitService(),
         gitHubService: GitHubService = GitHubService(),
-        postCreateActionService: PostCreateActionService = PostCreateActionService()
+        postCreateActionService: PostCreateActionService = PostCreateActionService(),
+        codexPromptPackService: CodexPromptPackService = CodexPromptPackService()
     ) {
         self.settingsStore = settingsStore
         self.logger = logger
@@ -74,6 +89,7 @@ final class AppViewModel: ObservableObject {
         self.gitService = gitService
         self.gitHubService = gitHubService
         self.postCreateActionService = postCreateActionService
+        self.codexPromptPackService = codexPromptPackService
         self.settings = settingsStore.load()
         self.logEntries = logger.entries
 
@@ -253,11 +269,30 @@ final class AppViewModel: ObservableObject {
     }
 
     func copyLastCreatedCodexStarterPrompt() {
-        performPostCreateAction {
-            guard let lastCreatedTemplate else {
-                return .failure(PostCreateActionError.missingTemplateContext)
-            }
-            return postCreateActionService.copyCodexStarterPrompt(projectURL: $0, template: lastCreatedTemplate)
+        guard let prompt = prompt(for: .starter) else {
+            log("Prompt action skipped: no prompt pack is available yet.")
+            return
+        }
+
+        switch postCreateActionService.copyPrompt(prompt.body, title: prompt.title) {
+        case let .success(message):
+            log(message)
+        case let .failure(error):
+            log("Prompt action failed: \(error.localizedDescription)")
+        }
+    }
+
+    func copySelectedPrompt() {
+        guard let prompt = selectedPrompt else {
+            log("Prompt action skipped: no prompt pack is available yet.")
+            return
+        }
+
+        switch postCreateActionService.copyPrompt(prompt.body, title: prompt.title) {
+        case let .success(message):
+            log(message)
+        case let .failure(error):
+            log("Prompt action failed: \(error.localizedDescription)")
         }
     }
 
@@ -350,6 +385,10 @@ final class AppViewModel: ObservableObject {
         }
 
         return .failed("Setup failed")
+    }
+
+    private func prompt(for kind: CodexPromptKind) -> CodexPrompt? {
+        availablePromptPack.first(where: { $0.kind == kind })
     }
 
     private func skipReasonLike(_ messages: [String]) -> String? {
