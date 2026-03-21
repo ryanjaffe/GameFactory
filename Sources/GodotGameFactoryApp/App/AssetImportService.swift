@@ -22,11 +22,16 @@ struct AssetImportService {
         return AssetImportSummary(
             projectURL: projectURL,
             destinationDirectoryURL: destinationDirectoryURL,
-            importedFiles: importedFiles
+            importedFiles: importedFiles,
+            sourceKind: .manualFiles
         )
     }
 
-    func importGeneratedAssets(_ files: [GeneratedAssetFile], into projectURL: URL) throws -> AssetImportSummary {
+    func importGeneratedAssets(
+        _ files: [GeneratedAssetFile],
+        into projectURL: URL,
+        packTitle: String
+    ) throws -> AssetImportSummary {
         let destinationDirectoryURL = projectURL.appendingPathComponent("art", isDirectory: true)
         try fileManager.createDirectory(at: destinationDirectoryURL, withIntermediateDirectories: true)
 
@@ -50,7 +55,8 @@ struct AssetImportService {
         return AssetImportSummary(
             projectURL: projectURL,
             destinationDirectoryURL: destinationDirectoryURL,
-            importedFiles: importedFiles
+            importedFiles: importedFiles,
+            sourceKind: .starterPack(packTitle)
         )
     }
 

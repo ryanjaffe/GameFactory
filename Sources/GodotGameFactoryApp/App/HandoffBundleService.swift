@@ -18,16 +18,12 @@ struct HandoffBundleService {
         No recent audit is available for this project.
         """
 
-        let assetSection = input.assetImportSummaryText.map {
-            """
-            ## Imported Assets
+        let assetSection = """
+        ## Assets
 
-            \($0)
-            """
-        } ?? """
-        ## Imported Assets
+        \(input.assetInventorySummaryText)
 
-        No recent asset import is available for this project.
+        \(input.recentAssetImportText ?? "Recent imports: none recorded in the current app session.")
         """
 
         let workflowSettingsSection = input.workflowSettingsSummaryText.map {
@@ -84,7 +80,8 @@ struct HandoffBundleInput {
     let workflowFiles: [String]
     let fileTreeText: String
     let auditSummaryText: String?
-    let assetImportSummaryText: String?
+    let assetInventorySummaryText: String
+    let recentAssetImportText: String?
     let workflowSettingsSummaryText: String?
     let starterPrompt: String
     let nextSteps: [String]

@@ -90,7 +90,7 @@ private struct HandoffBundleView: View {
     var body: some View {
         GroupBox("Handoff Bundle") {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Copy a concise handoff package with project summary, file tree, audit state, asset import info, and the starter prompt.")
+                Text("Copy a concise handoff package with project summary, file tree, audit state, asset context, recent import info, and the starter prompt.")
                     .foregroundStyle(.secondary)
 
                 if let activeProjectURL = viewModel.activeProjectURL {

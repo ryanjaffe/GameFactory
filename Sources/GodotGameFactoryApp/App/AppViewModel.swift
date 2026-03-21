@@ -75,6 +75,7 @@ final class AppViewModel: ObservableObject {
     private let projectAuditService: ProjectAuditService
     private let assetImportPickerService: AssetImportPickerService
     private let assetImportService: AssetImportService
+    private let assetPromptContextService: AssetPromptContextService
     private let assetStarterPackService: AssetStarterPackService
     private let handoffBundleService: HandoffBundleService
     private let workflowFileService: WorkflowFileService
@@ -296,6 +297,7 @@ final class AppViewModel: ObservableObject {
         projectAuditService: ProjectAuditService = ProjectAuditService(),
         assetImportPickerService: AssetImportPickerService = AssetImportPickerService(),
         assetImportService: AssetImportService = AssetImportService(),
+        assetPromptContextService: AssetPromptContextService = AssetPromptContextService(),
         assetStarterPackService: AssetStarterPackService = AssetStarterPackService(),
         handoffBundleService: HandoffBundleService = HandoffBundleService(),
         workflowFileService: WorkflowFileService = WorkflowFileService(),
@@ -320,6 +322,7 @@ final class AppViewModel: ObservableObject {
         self.projectAuditService = projectAuditService
         self.assetImportPickerService = assetImportPickerService
         self.assetImportService = assetImportService
+        self.assetPromptContextService = assetPromptContextService
         self.assetStarterPackService = assetStarterPackService
         self.handoffBundleService = handoffBundleService
         self.workflowFileService = workflowFileService
@@ -701,7 +704,11 @@ final class AppViewModel: ObservableObject {
         }
 
         do {
-            let importSummary = try assetImportService.importGeneratedAssets(pack.files, into: activeProjectURL)
+            let importSummary = try assetImportService.importGeneratedAssets(
+                pack.files,
+                into: activeProjectURL,
+                packTitle: pack.title
+            )
             lastAssetImport = importSummary
             log("Applied asset starter pack: \(pack.title)")
             for importedFile in importSummary.importedFiles {
@@ -1207,6 +1214,7 @@ final class AppViewModel: ObservableObject {
             inspectedSummary.hasReadmeFile ? "README.md" : nil,
             inspectedSummary.hasValidationScript ? "run_validation.sh" : nil,
         ].compactMap { $0 }
+        let assetInventory = assetPromptContextService.inventorySummary(for: activeProjectURL)
 
         let input = HandoffBundleInput(
             projectName: activeProjectName,
@@ -1217,7 +1225,8 @@ final class AppViewModel: ObservableObject {
             workflowFiles: workflowFiles,
             fileTreeText: inspectedSummary.fileTreeText,
             auditSummaryText: relevantAuditSummaryText(for: activeProjectURL),
-            assetImportSummaryText: relevantAssetImportSummaryText(for: activeProjectURL),
+            assetInventorySummaryText: assetInventory.bundleSummaryText,
+            recentAssetImportText: relevantRecentAssetImportText(for: activeProjectURL),
             workflowSettingsSummaryText: workflowSettingsSummaryText(for: activeProjectURL, template: template),
             starterPrompt: starterPrompt,
             nextSteps: handoffNextSteps(for: inspectedSummary, template: template)
@@ -1265,12 +1274,19 @@ final class AppViewModel: ObservableObject {
         return lastProjectAudit?.summaryText
     }
 
-    private func relevantAssetImportSummaryText(for projectURL: URL) -> String? {
+    private func relevantRecentAssetImportText(for projectURL: URL) -> String? {
         guard lastAssetImport?.projectURL == projectURL else {
             return nil
         }
 
-        return lastAssetImport?.summaryText
+        guard let lastAssetImport else {
+            return nil
+        }
+
+        return """
+        \(lastAssetImport.sourceKind.displayText)
+        \(lastAssetImport.recentImportText)
+        """
     }
 
     private func handoffNextSteps(for inspectedSummary: InspectedProjectSummary, template: ProjectTemplate?) -> [String] {

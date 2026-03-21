@@ -8,20 +8,17 @@ struct AssetPromptContextService {
     }
 
     func assetSummary(for projectURL: URL) -> String {
+        inventorySummary(for: projectURL).promptSummaryText
+    }
+
+    func inventorySummary(for projectURL: URL) -> AssetInventorySummary {
         let artDirectoryURL = projectURL.appendingPathComponent("art", isDirectory: true)
         guard fileManager.fileExists(atPath: artDirectoryURL.path) else {
-            return "Imported assets: none detected under `art/`."
+            return AssetInventorySummary(relativePaths: [])
         }
 
         let assetFiles = enumeratedAssetFiles(in: artDirectoryURL, relativeTo: projectURL)
-        guard !assetFiles.isEmpty else {
-            return "Imported assets: none detected under `art/`."
-        }
-
-        let groupSummary = assetGroupSummary(for: assetFiles)
-        let samplePaths = assetFiles.prefix(3).map { "`\($0)`" }.joined(separator: ", ")
-
-        return "Imported assets: \(assetFiles.count) file(s) under `art/`; groups: \(groupSummary); examples: \(samplePaths)."
+        return AssetInventorySummary(relativePaths: assetFiles)
     }
 
     private func enumeratedAssetFiles(in artDirectoryURL: URL, relativeTo projectURL: URL) -> [String] {
@@ -72,5 +69,67 @@ struct AssetPromptContextService {
         return groupedCounts.prefix(3)
             .map { "`\($0.key)` (\($0.count))" }
             .joined(separator: ", ")
+    }
+}
+
+struct AssetInventorySummary {
+    let relativePaths: [String]
+
+    var hasAssets: Bool {
+        !relativePaths.isEmpty
+    }
+
+    var totalFileCount: Int {
+        relativePaths.count
+    }
+
+    var groupedCounts: [(name: String, count: Int)] {
+        Dictionary(grouping: relativePaths) { relativePath in
+            let components = relativePath.split(separator: "/")
+            if components.count >= 3 {
+                return String(components[1])
+            }
+            return "art root"
+        }
+        .map { key, values in (name: key, count: values.count) }
+        .sorted { lhs, rhs in
+            if lhs.count == rhs.count {
+                return lhs.name < rhs.name
+            }
+            return lhs.count > rhs.count
+        }
+    }
+
+    var representativePaths: [String] {
+        Array(relativePaths.prefix(3))
+    }
+
+    var promptSummaryText: String {
+        guard hasAssets else {
+            return "Imported assets: none detected under `art/`."
+        }
+
+        let groupSummary = groupedCounts.prefix(3)
+            .map { "`\($0.name)` (\($0.count))" }
+            .joined(separator: ", ")
+        let samplePaths = representativePaths.map { "`\($0)`" }.joined(separator: ", ")
+        return "Imported assets: \(totalFileCount) file(s) under `art/`; groups: \(groupSummary); examples: \(samplePaths)."
+    }
+
+    var bundleSummaryText: String {
+        guard hasAssets else {
+            return "Assets: none detected under `art/`."
+        }
+
+        let groups = groupedCounts.prefix(3)
+            .map { "\($0.name) (\($0.count))" }
+            .joined(separator: ", ")
+        let examples = representativePaths.joined(separator: ", ")
+
+        return """
+        Assets: \(totalFileCount) file(s) under art/
+        Groups: \(groups)
+        Representative paths: \(examples)
+        """
     }
 }
