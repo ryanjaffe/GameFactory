@@ -23,6 +23,7 @@ struct ProjectPreset: Identifiable, Equatable, Codable {
         AppSettings(
             projectName: settings.projectName,
             baseDirectory: baseDirectory,
+            godotExecutablePath: settings.godotExecutablePath,
             gitHubUsername: gitHubUsername,
             repoVisibility: repoVisibility,
             template: template

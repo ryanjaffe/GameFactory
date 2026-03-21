@@ -135,6 +135,10 @@ private struct RecentProjectsView: View {
                                     viewModel.selectRecentProjectForWorkflowFiles(project)
                                 }
 
+                                Button("Open in Godot") {
+                                    viewModel.openRecentProjectInGodot(project)
+                                }
+
                                 Button("Open in Codex") {
                                     viewModel.openRecentProjectInCodex(project)
                                 }
@@ -381,6 +385,11 @@ private struct PostCreateActionsView: View {
                     .foregroundStyle(viewModel.hasLastCreatedProject ? .primary : .secondary)
 
                 HStack {
+                    Button("Open in Godot") {
+                        viewModel.openLastCreatedProjectInGodot()
+                    }
+                    .disabled(!viewModel.hasLastCreatedProject)
+
                     Button("Open in Codex") {
                         viewModel.openLastCreatedProjectInCodex()
                     }
@@ -428,6 +437,14 @@ private struct NewProjectFormView: View {
 
                     Button("Choose Folder") {
                         viewModel.chooseBaseDirectory()
+                    }
+                }
+
+                HStack(alignment: .center, spacing: 12) {
+                    TextField("Godot Path (Optional)", text: $viewModel.settings.godotExecutablePath)
+
+                    Button("Choose App/Binary") {
+                        viewModel.chooseGodotExecutablePath()
                     }
                 }
 

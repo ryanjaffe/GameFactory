@@ -3,6 +3,7 @@ import Foundation
 struct AppSettings: Equatable, Codable {
     var projectName: String
     var baseDirectory: String
+    var godotExecutablePath: String
     var gitHubUsername: String
     var repoVisibility: RepoVisibility
     var template: ProjectTemplate
@@ -10,6 +11,7 @@ struct AppSettings: Equatable, Codable {
     static let `default` = AppSettings(
         projectName: "",
         baseDirectory: "\(NSHomeDirectory())/Documents/CODEX",
+        godotExecutablePath: "",
         gitHubUsername: "",
         repoVisibility: .privateRepo,
         template: .blank

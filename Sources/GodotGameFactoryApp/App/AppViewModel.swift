@@ -46,6 +46,8 @@ final class AppViewModel: ObservableObject {
     private let codexPromptPackService: CodexPromptPackService
     private let codexHandoffService: CodexHandoffService
     private let folderPickerService: FolderPickerService
+    private let godotPathPickerService: GodotPathPickerService
+    private let godotLaunchService: GodotLaunchService
     private let workflowFileService: WorkflowFileService
     private var hasFinishedInitializing = false
     private var hasLoggedSaveFailure = false
@@ -165,6 +167,8 @@ final class AppViewModel: ObservableObject {
         codexPromptPackService: CodexPromptPackService = CodexPromptPackService(),
         codexHandoffService: CodexHandoffService = CodexHandoffService(),
         folderPickerService: FolderPickerService = FolderPickerService(),
+        godotPathPickerService: GodotPathPickerService = GodotPathPickerService(),
+        godotLaunchService: GodotLaunchService = GodotLaunchService(),
         workflowFileService: WorkflowFileService = WorkflowFileService()
     ) {
         self.settingsStore = settingsStore
@@ -178,6 +182,8 @@ final class AppViewModel: ObservableObject {
         self.codexPromptPackService = codexPromptPackService
         self.codexHandoffService = codexHandoffService
         self.folderPickerService = folderPickerService
+        self.godotPathPickerService = godotPathPickerService
+        self.godotLaunchService = godotLaunchService
         self.workflowFileService = workflowFileService
         self.settings = settingsStore.load()
         self.presets = presetStore.load()
@@ -360,6 +366,14 @@ final class AppViewModel: ObservableObject {
         settings.baseDirectory = selectedFolderURL.path
     }
 
+    func chooseGodotExecutablePath() {
+        guard let selectedExecutableURL = godotPathPickerService.chooseGodotExecutable() else {
+            return
+        }
+
+        settings.godotExecutablePath = selectedExecutableURL.path
+    }
+
     func selectRecentProjectForWorkflowFiles(_ project: RecentProject) {
         guard !workflowFileHasUnsavedChanges else {
             log("Workflow file selection blocked: save or revert current changes first.")
@@ -517,6 +531,10 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func openLastCreatedProjectInGodot() {
+        performGodotLaunch(projectURL: lastCreatedProjectURL, source: "Post-create action")
+    }
+
     func copyLastCreatedCodexStarterPrompt() {
         guard let lastCreatedProjectURL, let lastCreatedTemplate else {
             log("Prompt action skipped: no prompt pack is available yet.")
@@ -584,6 +602,10 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func openRecentProjectInGodot(_ project: RecentProject) {
+        performGodotLaunch(projectURL: project.projectURL, source: "Recent project action")
+    }
+
     func copyRecentProjectPath(_ project: RecentProject) {
         switch postCreateActionService.copyProjectPath(projectURL: project.projectURL) {
         case let .success(message):
@@ -619,6 +641,20 @@ final class AppViewModel: ObservableObject {
             log(message)
         case let .failure(error):
             log("Post-create action failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func performGodotLaunch(projectURL: URL?, source: String) {
+        guard let projectURL else {
+            log("\(source) skipped: no project is available yet.")
+            return
+        }
+
+        switch godotLaunchService.openProject(at: projectURL, configuredExecutablePath: settings.godotExecutablePath) {
+        case let .success(message):
+            log(message)
+        case let .failure(error):
+            log("Godot launch failed: \(error.localizedDescription)")
         }
     }
 

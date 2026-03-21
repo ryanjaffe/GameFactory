@@ -38,6 +38,7 @@ struct AppSettingsStore {
         AppSettings(
             projectName: settings.projectName,
             baseDirectory: settings.baseDirectory.isEmpty ? AppSettings.default.baseDirectory : settings.baseDirectory,
+            godotExecutablePath: settings.godotExecutablePath,
             gitHubUsername: settings.gitHubUsername,
             repoVisibility: settings.repoVisibility,
             template: settings.template
