@@ -232,18 +232,17 @@ struct ProjectGenerator {
 
     private func runValidationScriptContents(template: ProjectTemplate) -> String {
         let validationTarget = ProjectTemplateSupport.validationTarget(for: template)
-        let templateLine = "Template: \(template.rawValue)"
-        let targetLine = validationTarget.map { "Starter target: \($0)" } ?? "Starter target: none configured yet"
-        let sceneCheck = validationTarget.map {
+        let targetLine = validationTarget.map { "Starter scene: \($0)" } ?? "Starter scene: none configured yet"
+        let sceneStatus = validationTarget.map {
             """
             if [[ -f "\($0)" ]]; then
-              echo "[validation] Starter scene present: \($0)"
+              echo "[validation] PASS: starter scene present at \($0)" | tee -a "$LOG_FILE"
             else
-              echo "[validation] Starter scene not found yet: \($0)"
+              echo "[validation] FAIL: starter scene not found at \($0)" | tee -a "$LOG_FILE"
             fi
             """
         } ?? """
-        echo "[validation] No starter scene configured for this template yet."
+        echo "[validation] INFO: no starter scene is configured for this template yet." | tee -a "$LOG_FILE"
         """
 
         return """
@@ -251,22 +250,43 @@ struct ProjectGenerator {
         set -euo pipefail
 
         mkdir -p artifacts
+        LOG_FILE="artifacts/validation.log"
+        : > "$LOG_FILE"
 
-        echo "[validation] Starting starter validation"
-        echo "[validation] \(templateLine)"
-        echo "[validation] \(targetLine)"
-        echo "[validation] This is a lightweight editable starter script."
-        echo "[validation] Write follow-up notes or logs to artifacts/."
+        echo "== Godot Game Factory Validation ==" | tee -a "$LOG_FILE"
+        echo "[validation] Template: \(template.rawValue)" | tee -a "$LOG_FILE"
+        echo "[validation] \(targetLine)" | tee -a "$LOG_FILE"
+        echo "[validation] Log file: $LOG_FILE" | tee -a "$LOG_FILE"
+        echo "[validation] This is a lightweight editable starter validation script." | tee -a "$LOG_FILE"
+        echo "[validation] Any follow-up notes or logs should be written to artifacts/." | tee -a "$LOG_FILE"
+        echo "" | tee -a "$LOG_FILE"
+
+        echo "== Files ==" | tee -a "$LOG_FILE"
 
         if [[ -f "project.godot" ]]; then
-          echo "[validation] project.godot found"
+          echo "[validation] PASS: project.godot found" | tee -a "$LOG_FILE"
         else
-          echo "[validation] project.godot missing"
+          echo "[validation] FAIL: project.godot is missing" | tee -a "$LOG_FILE"
         fi
 
-        \(sceneCheck)
+        \(sceneStatus)
 
-        echo "[validation] Starter validation complete"
+        echo "" | tee -a "$LOG_FILE"
+        echo "== Tooling ==" | tee -a "$LOG_FILE"
+
+        if ! command -v godot >/dev/null 2>&1; then
+          echo "[validation] INFO: Godot is not installed or not on PATH." | tee -a "$LOG_FILE"
+          echo "[validation] INFO: Install Godot or open the project manually to continue validation." | tee -a "$LOG_FILE"
+          echo "[validation] SUCCESS: starter validation completed without running Godot." | tee -a "$LOG_FILE"
+          exit 0
+        fi
+
+        echo "[validation] INFO: Godot is available on PATH." | tee -a "$LOG_FILE"
+        echo "[validation] INFO: No automated Godot command is configured yet." | tee -a "$LOG_FILE"
+        echo "[validation] INFO: Open the project in Godot and use the starter scene noted above if present." | tee -a "$LOG_FILE"
+
+        echo "" | tee -a "$LOG_FILE"
+        echo "[validation] SUCCESS: starter validation completed." | tee -a "$LOG_FILE"
         """
     }
 
