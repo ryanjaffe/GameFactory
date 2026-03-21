@@ -27,6 +27,8 @@ enum ProjectTemplate: String, CaseIterable, Identifiable, Codable {
     case blank = "Blank"
     case platformerStarter = "2D Platformer Starter"
     case topDownStarter = "Top-Down Starter"
+    case starter3D = "3D Starter"
+    case dialogueNarrativeStarter = "Dialogue / Narrative Starter"
 
     var id: String { rawValue }
 }

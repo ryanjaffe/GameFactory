@@ -52,6 +52,10 @@ struct CodexPromptPackService {
                 return "Inspect the platformer scaffold first, especially `scripts/platformer_player.gd` and `scenes/platformer_playground.tscn`, then make the next smallest useful platformer improvement and validate after changes."
             case .topDownStarter:
                 return "Inspect the top-down scaffold first, especially `scripts/top_down_player.gd` and `scenes/top_down_playground.tscn`, then make the next smallest useful top-down improvement and validate after changes."
+            case .starter3D:
+                return "Inspect the 3D scaffold first, especially `scripts/player_controller_3d.gd` and `scenes/starter_3d_playground.tscn`, then make the next smallest useful 3D improvement and validate after changes."
+            case .dialogueNarrativeStarter:
+                return "Inspect the dialogue scaffold first, especially `scripts/dialogue_controller.gd`, `scenes/dialogue_playground.tscn`, and `tests/dialogue_outline.txt`, then make the next smallest useful narrative improvement and validate after changes."
             }
         case .nextMechanic:
             switch template {
@@ -61,6 +65,10 @@ struct CodexPromptPackService {
                 return "Implement the next small platformer mechanic after the current movement placeholder, such as jump tuning, coyote time notes, or a simple collectible hook, while keeping the change bounded."
             case .topDownStarter:
                 return "Implement the next small top-down mechanic after the current movement placeholder, such as interaction range, dash placeholder, or simple obstacle response, while keeping the change bounded."
+            case .starter3D:
+                return "Implement the next small 3D mechanic after the current movement placeholder, such as look controls, camera follow notes, or a simple interactable hook, while keeping the change bounded."
+            case .dialogueNarrativeStarter:
+                return "Implement the next small dialogue mechanic after the current placeholder, such as advancing text, a branching choice stub, or speaker metadata, while keeping the change bounded."
             }
         case .diagnoseIssue:
             switch template {
@@ -70,6 +78,10 @@ struct CodexPromptPackService {
                 return "Diagnose a platformer starter issue by inspecting the scaffold, movement placeholder, and validation flow first, then fix only the smallest confirmed problem."
             case .topDownStarter:
                 return "Diagnose a top-down starter issue by inspecting the scaffold, movement placeholder, and validation flow first, then fix only the smallest confirmed problem."
+            case .starter3D:
+                return "Diagnose a 3D starter issue by inspecting the scaffold, movement placeholder, and validation flow first, then fix only the smallest confirmed problem."
+            case .dialogueNarrativeStarter:
+                return "Diagnose a dialogue starter issue by inspecting the scaffold, placeholder script, outline data, and validation flow first, then fix only the smallest confirmed problem."
             }
         case .instrumentation:
             switch template {
@@ -79,6 +91,10 @@ struct CodexPromptPackService {
                 return "Add lightweight instrumentation around the platformer starter flow so movement or validation behavior is easier to inspect without turning it into a full debug system."
             case .topDownStarter:
                 return "Add lightweight instrumentation around the top-down starter flow so movement or validation behavior is easier to inspect without turning it into a full debug system."
+            case .starter3D:
+                return "Add lightweight instrumentation around the 3D starter flow so movement or validation behavior is easier to inspect without turning it into a full debug system."
+            case .dialogueNarrativeStarter:
+                return "Add lightweight instrumentation around the dialogue starter flow so text progression or branching behavior is easier to inspect without turning it into a full debug system."
             }
         case .improveValidation:
             switch template {
@@ -88,6 +104,10 @@ struct CodexPromptPackService {
                 return "Improve the validation workflow for the platformer starter in a small, safe way, especially around `./run_validation.sh` and the starter scene checks."
             case .topDownStarter:
                 return "Improve the validation workflow for the top-down starter in a small, safe way, especially around `./run_validation.sh` and the starter scene checks."
+            case .starter3D:
+                return "Improve the validation workflow for the 3D starter in a small, safe way, especially around `./run_validation.sh` and the starter scene checks."
+            case .dialogueNarrativeStarter:
+                return "Improve the validation workflow for the dialogue starter in a small, safe way, especially around `./run_validation.sh`, the starter scene, and the narrative outline checks."
             }
         }
     }
