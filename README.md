@@ -94,6 +94,20 @@ Some features depend on local tools being installed:
 
 The app should detect missing tools and provide helpful next steps instead of failing silently.
 
+## Current Status
+
+What is already working:
+
+- project scaffold generation
+- safe naming collision handling
+- local Git init with an initial commit
+- optional GitHub setup through `gh`
+- settings persistence
+- dry-run / preview mode
+- post-create actions for the last real project
+- lightweight templates
+- generated project `AGENTS.md`, `run_validation.sh`, and Codex starter prompt support
+
 ## Current implementation
 
 The repository now contains a minimal native macOS app scaffold built with SwiftUI and Swift Package Manager.
@@ -109,6 +123,50 @@ Current architecture modules:
 
 This is intentionally the smallest runnable starting point for the MVP.
 
+## V2 Roadmap
+
+V2 is about polish, repeatability, and stronger handoff into Codex.
+
+The goal is not feature sprawl.
+The goal is to make project creation easier to trust, easier to inspect, and easier to continue after generation.
+
+Themes for V2:
+
+### 1. Visibility and trust
+
+- post-create project summary panel
+- Git and GitHub status indicators
+- copyable file tree or project manifest
+
+### 2. Codex handoff quality
+
+- stronger template-aware prompt pack
+- improved `run_validation.sh` workflow
+- safe Open in Codex handoff flow
+
+### 3. Creation UX
+
+- Finder-based base directory picker
+- recent projects list
+
+### 4. Repeatability
+
+- reusable configuration presets
+- expanded lightweight templates
+
+## Next Recommended Build Order
+
+1. post-create project summary panel
+2. Git/GitHub status indicators
+3. copyable file tree / manifest
+4. improved validation runner
+5. template-aware prompt pack
+6. Finder-based folder picker
+7. safe Open in Codex workflow
+8. recent projects list
+9. reusable presets
+10. expanded lightweight templates
+
 ## Run locally
 
 From the repository root:
@@ -116,5 +174,3 @@ From the repository root:
 ```bash
 swift run
 ```
-
-The next implementation steps are wiring the New Project form, project generation flow, and subprocess integrations.

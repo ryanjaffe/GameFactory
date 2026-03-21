@@ -317,6 +317,52 @@ For generated Godot project templates:
 
 ---
 
+## V2 Roadmap
+
+V2 should focus on polish, trust, and stronger Codex handoff.
+
+The goal is not to add a random backlog of features.
+The goal is to make project creation easier to trust, easier to inspect, and easier to continue in Codex without guesswork.
+
+V2 work should be grouped into these themes:
+
+### 1. Visibility and Trust
+
+- post-create project summary panel
+- Git and GitHub status indicators
+- copyable file tree or project manifest
+
+### 2. Codex Handoff Quality
+
+- stronger template-aware prompt pack
+- improved `run_validation.sh` workflow
+- safe Open in Codex handoff flow
+
+### 3. Creation UX
+
+- Finder-based base directory picker
+- recent projects list
+
+### 4. Repeatability
+
+- reusable configuration presets
+- expanded lightweight templates
+
+V2 tasks should improve confidence, visibility, or repeatability directly.
+Avoid adding features that do not clearly strengthen one of these themes.
+
+---
+
+## V2 Should Avoid
+
+- cloud sync
+- plugin marketplace
+- speculative framework rewrite
+- oversized template system
+- overengineering
+
+---
+
 ## Debugging Protocol
 
 If behavior is unclear:
