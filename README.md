@@ -1,179 +1,129 @@
 # Godot Game Factory
 
-Godot Game Factory is a local macOS app for creating **Codex-friendly Godot project scaffolds**.
+Godot Game Factory is a local macOS app for creating Codex-friendly Godot project scaffolds.
 
-Its job is to remove setup friction and make the boring parts of starting a game project fast, repeatable, and inspectable.
-
-## What it does
-
-The app helps create new Godot projects with:
-
-- a consistent folder structure
-- Git initialization
-- optional GitHub repo creation through `gh`
-- Codex workflow files such as `AGENTS.md`
-- validation scripts and starter test files
-- reusable templates for common project types
-- visible logs and safe, local execution
-
-## Why this exists
-
-Starting a new Godot project often involves a lot of repeated setup:
-
-- creating folders
-- initializing Git
-- wiring GitHub
-- adding starter files
-- setting up Codex instructions
-- creating repeatable validation scaffolding
-
-This app turns that into a guided, repeatable workflow.
-
-## Product goals
-
-Every generated project should be:
-
-- easy to create
-- easy to inspect
-- safe to modify
-- ready for Codex
-- ready for Git
-- optionally ready for GitHub
-
-The app is intentionally **local-first** and should not depend on cloud services for core functionality.
-
-## v1 priorities
-
-Version 1 focuses on:
-
-1. project creation
-2. project scaffolding
-3. Git initialization
-4. optional GitHub repo creation
-5. Codex workflow file generation
-6. validation file generation
-7. clear status and logs
-
-## Non-goals
-
-This app is not trying to be:
-
-- a game engine
-- a full Godot editor replacement
-- a launcher platform
-- a cloud build system
-
-It is a **project factory** for repeatable setup.
-
-## Core principles
-
-- keep setup simple
-- preserve user work
-- avoid destructive behavior
-- make automation visible
-- prefer deterministic output
-- favor working software over overengineering
-
-## Typical workflow
-
-1. Enter project details in the GUI
-2. Choose a template
-3. Preview what will be created
-4. Generate the project scaffold
-5. Initialize Git
-6. Optionally create and push a GitHub repo
-7. Open the generated project and continue in Godot and Codex
-
-## External tools
-
-Some features depend on local tools being installed:
-
-- `git` for repository setup
-- `gh` for GitHub repo creation
-- `godot` for validation-related workflows, if supported by the generated project
-
-The app should detect missing tools and provide helpful next steps instead of failing silently.
-
-## Current Status
-
-What is already working:
-
-- project scaffold generation
-- safe naming collision handling
-- local Git init with an initial commit
+It handles the repetitive setup around a new project:
+- folder structure
+- starter files
+- Git setup
 - optional GitHub setup through `gh`
-- settings persistence
-- dry-run / preview mode
-- post-create summary, status, and export actions
+- validation workflow files
+- Codex handoff helpers
+
+The app is local-first and designed to keep setup visible, repeatable, and non-destructive.
+
+## Current Features
+
+- new project form with project name, base directory, GitHub username, repo visibility, and template
+- dry run / preview mode before writing files
+- non-destructive folder collision handling using suffixed project folders
+- local scaffold generation with starter files and workflow files
+- local Git initialization with initial commit
+- optional GitHub repo creation through `gh`
+- visible log panel
+- post-create project summary with Git and GitHub status
+- copyable summary and file tree
+- template-aware Codex prompt pack
+- Open in Codex handoff flow
 - recent projects with persistence
 - reusable presets
-- Open in Codex handoff
-- lightweight templates
-- generated project `AGENTS.md`, `run_validation.sh`, and template-aware Codex prompt support
-
-## Current implementation
-
-The repository now contains a minimal native macOS app scaffold built with SwiftUI and Swift Package Manager.
-
-Current architecture modules:
-
-- `Sources/GodotGameFactoryApp/App` for app entry and top-level state
-- `Sources/GodotGameFactoryApp/UI` for SwiftUI views
-- `Sources/GodotGameFactoryApp/Settings` for persisted user settings models
-- `Sources/GodotGameFactoryApp/Generation` for project scaffold generation
-- `Sources/GodotGameFactoryApp/Integrations` for Git and GitHub integrations
-- `Sources/GodotGameFactoryApp/Logging` for visible app logging
-
-This is intentionally the smallest runnable starting point for the MVP.
-
-## V2 Roadmap
-
-V2 is about polish, repeatability, and stronger handoff into Codex.
-
-The goal is not feature sprawl.
-The goal is to make project creation easier to trust, easier to inspect, and easier to continue after generation.
-
-Themes for V2:
-
-### 1. Visibility and trust
-
-- post-create project summary panel
-- Git and GitHub status indicators
-- copyable file tree or project manifest
-
-### 2. Codex handoff quality
-
-- stronger template-aware prompt pack
-- improved `run_validation.sh` workflow
-- safe Open in Codex handoff flow
-
-### 3. Creation UX
-
 - Finder-based base directory picker
-- recent projects list
 
-### 4. Repeatability
+## Supported Templates
 
-- reusable configuration presets
-- expanded lightweight templates
+- Blank
+- 2D Platformer Starter
+- Top-Down Starter
+- 3D Starter
+- Dialogue / Narrative Starter
 
-## Next Recommended Build Order
+Templates stay intentionally lightweight. They add small starter scenes, scripts, notes, and workflow guidance rather than full gameplay systems.
 
-1. post-create project summary panel
-2. Git/GitHub status indicators
-3. copyable file tree / manifest
-4. improved validation runner
-5. template-aware prompt pack
-6. Finder-based folder picker
-7. safe Open in Codex workflow
-8. recent projects list
-9. reusable presets
-10. expanded lightweight templates
+## Normal Workflow
 
-## Run locally
+1. Enter a project name and base directory.
+2. Optionally choose a template, GitHub username, and repo visibility.
+3. Optionally use Dry Run or Preview Plan to inspect the outcome first.
+4. Create the project scaffold.
+5. Review the generated summary, workflow files, and logs.
+6. Use post-create actions or Open in Codex to continue work.
+
+## Dry Run
+
+Dry Run validates the form, computes the final target path, applies collision handling, and shows the folders, files, Git step, and GitHub step that would be used.
+
+Dry Run does not:
+- create files or folders
+- initialize Git
+- call `gh`
+- update post-create summary state
+
+## Open in Codex
+
+Open in Codex is a lightweight handoff action.
+
+It currently:
+- copies the best starter prompt for the selected project and template
+- opens the project folder in Terminal
+- shows a short next-step handoff message in the app
+
+It does not directly launch a separate Codex app workflow.
+
+## Recent Projects And Presets
+
+Recent Projects:
+- stores recent real project creations across launches
+- keeps the list bounded and deduped by project path
+- provides quick actions like Copy Path, Open in Finder, and Open in Codex
+
+Presets:
+- save named creation defaults for base directory, GitHub username, repo visibility, and template
+- apply values back into the form without creating a project
+- persist across launches
+
+## Generated Workflow Files
+
+Generated projects include:
+- `AGENTS.md`
+- `run_validation.sh`
+- `README.md`
+- `.gitignore`
+- `project.godot`
+
+Template starters may also add scenes, scripts, and notes files under `scenes/`, `scripts/`, and `tests/`.
+
+## Local Run
 
 From the repository root:
 
 ```bash
 swift run
 ```
+
+Build only:
+
+```bash
+swift build
+```
+
+## External Tools
+
+Some app features depend on local tools:
+
+- `git` for repository initialization
+- `gh` for optional GitHub repo creation
+- `godot` for fuller validation workflows inside generated projects
+
+The app is expected to handle missing tools gracefully.
+
+## Known Limits
+
+- The app currently targets macOS.
+- Templates are intentionally small and not full gameplay frameworks.
+- `run_validation.sh` is a starter validation script, not a full automation pipeline.
+- GitHub setup depends on `gh` being installed and authenticated.
+- Open in Codex is a composed handoff flow, not a direct Codex launcher integration.
+
+## Testing
+
+See [TESTING.md](/Users/ryan/Documents/CODEX/GameFactory/TESTING.md) for a manual smoke-test checklist.
