@@ -76,10 +76,10 @@ enum ProjectIntegrationStatus: Equatable {
     case skipped(String)
     case failed(String)
 
-    var title: String {
+    var label: String {
         switch self {
         case .succeeded:
-            return "Succeeded"
+            return "Ready"
         case .skipped:
             return "Skipped"
         case .failed:
@@ -98,9 +98,40 @@ enum ProjectIntegrationStatus: Equatable {
 
     var displayText: String {
         guard let detail else {
-            return title
+            return label
         }
 
-        return "\(title) (\(detail))"
+        return "\(label) (\(detail))"
+    }
+
+    var shortDetail: String {
+        switch self {
+        case .succeeded:
+            return "Completed"
+        case let .skipped(reason), let .failed(reason):
+            return reason
+        }
+    }
+
+    var systemImageName: String {
+        switch self {
+        case .succeeded:
+            return "checkmark.circle.fill"
+        case .skipped:
+            return "minus.circle.fill"
+        case .failed:
+            return "xmark.circle.fill"
+        }
+    }
+
+    var colorName: String {
+        switch self {
+        case .succeeded:
+            return "success"
+        case .skipped:
+            return "skipped"
+        case .failed:
+            return "failed"
+        }
     }
 }

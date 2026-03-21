@@ -31,6 +31,41 @@ struct MainView: View {
     }
 }
 
+private struct IntegrationStatusView: View {
+    let label: String
+    let status: ProjectIntegrationStatus
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .fontWeight(.medium)
+
+            HStack(spacing: 8) {
+                Image(systemName: status.systemImageName)
+                    .foregroundStyle(statusColor)
+                Text(status.label)
+                    .fontWeight(.medium)
+            }
+
+            Text(status.shortDetail)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var statusColor: Color {
+        switch status.colorName {
+        case "success":
+            return .green
+        case "skipped":
+            return .orange
+        case "failed":
+            return .red
+        default:
+            return .secondary
+        }
+    }
+}
+
 private struct ProjectSummaryView: View {
     @ObservedObject var viewModel: AppViewModel
 
@@ -41,8 +76,11 @@ private struct ProjectSummaryView: View {
                     summaryRow(label: "Project", value: summary.projectName)
                     summaryRow(label: "Path", value: summary.finalProjectURL.path, selectable: true)
                     summaryRow(label: "Template", value: summary.template.rawValue)
-                    statusRow(label: "Git", status: summary.gitStatus)
-                    statusRow(label: "GitHub", status: summary.gitHubStatus)
+
+                    HStack(alignment: .top, spacing: 24) {
+                        IntegrationStatusView(label: "Git", status: summary.gitStatus)
+                        IntegrationStatusView(label: "GitHub", status: summary.gitHubStatus)
+                    }
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Workflow Files")
@@ -80,17 +118,6 @@ private struct ProjectSummaryView: View {
         }
     }
 
-    private func statusRow(label: String, status: ProjectIntegrationStatus) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .fontWeight(.medium)
-            Text(status.title)
-            if let detail = status.detail {
-                Text(detail)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
 }
 
 private struct PostCreateActionsView: View {

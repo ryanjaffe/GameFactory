@@ -314,6 +314,10 @@ final class AppViewModel: ObservableObject {
             return .skipped("Git unavailable")
         }
 
+        if let failureReason = result.messages.last(where: { $0.contains("failed") || $0.contains("error") }) {
+            return .failed(failureReason)
+        }
+
         return .failed("Initialization failed")
     }
 
@@ -323,12 +327,32 @@ final class AppViewModel: ObservableObject {
         }
 
         if result.skipped {
-            if let skipReason = result.messages.last(where: { $0.contains("skipped") || $0.contains("Skipping") || $0.contains("authenticated") || $0.contains("username") }) {
-                return .skipped(skipReason)
+            if result.messages.last(where: { $0.contains("no GitHub username") }) != nil {
+                return .skipped("No GitHub username")
+            }
+            if result.messages.last(where: { $0.contains("not authenticated") }) != nil {
+                return .skipped("gh not authenticated")
+            }
+            if result.messages.last(where: { $0.contains("not available") }) != nil {
+                return .skipped("gh unavailable")
+            }
+            if result.messages.last(where: { $0.contains("origin remote") || $0.contains("Origin remote already exists") }) != nil {
+                return .skipped("Origin already exists")
+            }
+            if skipReasonLike(result.messages) != nil {
+                return .skipped("Setup skipped")
             }
             return .skipped("Setup skipped")
         }
 
+        if let failureReason = result.messages.last(where: { $0.contains("failed") || $0.contains("error") }) {
+            return .failed(failureReason)
+        }
+
         return .failed("Setup failed")
+    }
+
+    private func skipReasonLike(_ messages: [String]) -> String? {
+        messages.last(where: { $0.contains("skipped") || $0.contains("Skipping") })
     }
 }
