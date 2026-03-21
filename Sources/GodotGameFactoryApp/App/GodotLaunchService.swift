@@ -3,7 +3,7 @@ import Foundation
 struct GodotLaunchService {
     private let fileManager: FileManager
     private let processRunner: ProcessRunner
-    private let openProjectAction: ((URL, String) -> Result<String, Error>)?
+    private let openProjectAction: ((URL, String, String) -> Result<String, Error>)?
 
     init(
         fileManager: FileManager = .default,
@@ -14,18 +14,26 @@ struct GodotLaunchService {
         self.openProjectAction = nil
     }
 
-    init(openProjectAction: @escaping (URL, String) -> Result<String, Error>) {
+    init(openProjectAction: @escaping (URL, String, String) -> Result<String, Error>) {
         self.fileManager = .default
         self.processRunner = ProcessRunner()
         self.openProjectAction = openProjectAction
     }
 
-    func openProject(at projectURL: URL, configuredExecutablePath: String) -> Result<String, Error> {
+    func openProject(
+        at projectURL: URL,
+        projectOverridePath: String,
+        configuredExecutablePath: String
+    ) -> Result<String, Error> {
         if let openProjectAction {
-            return openProjectAction(projectURL, configuredExecutablePath)
+            return openProjectAction(projectURL, projectOverridePath, configuredExecutablePath)
         }
 
-        let command = launchCommand(for: projectURL, configuredExecutablePath: configuredExecutablePath)
+        let command = launchCommand(
+            for: projectURL,
+            projectOverridePath: projectOverridePath,
+            configuredExecutablePath: configuredExecutablePath
+        )
 
         switch command {
         case let .success(resolvedCommand):
@@ -52,8 +60,15 @@ struct GodotLaunchService {
         }
     }
 
-    func launchCommand(for projectURL: URL, configuredExecutablePath: String) -> Result<GodotLaunchCommand, GodotLaunchError> {
-        let trimmedPath = configuredExecutablePath.trimmingCharacters(in: .whitespacesAndNewlines)
+    func launchCommand(
+        for projectURL: URL,
+        projectOverridePath: String,
+        configuredExecutablePath: String
+    ) -> Result<GodotLaunchCommand, GodotLaunchError> {
+        let trimmedPath = resolvedExecutablePath(
+            projectOverridePath: projectOverridePath,
+            configuredExecutablePath: configuredExecutablePath
+        )
 
         if !trimmedPath.isEmpty {
             let configuredURL = URL(fileURLWithPath: NSString(string: trimmedPath).expandingTildeInPath)
@@ -92,6 +107,15 @@ struct GodotLaunchService {
         )
 
         return .success(fallback)
+    }
+
+    func resolvedExecutablePath(projectOverridePath: String, configuredExecutablePath: String) -> String {
+        let trimmedProjectOverride = projectOverridePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedProjectOverride.isEmpty {
+            return trimmedProjectOverride
+        }
+
+        return configuredExecutablePath.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

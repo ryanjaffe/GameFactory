@@ -786,11 +786,19 @@ final class AppViewModel: ObservableObject {
     }
 
     func openLastCreatedProjectInGodot() {
-        performGodotLaunch(projectURL: lastCreatedProjectURL, source: "Post-create action")
+        performGodotLaunch(
+            projectURL: lastCreatedProjectURL,
+            template: lastCreatedTemplate,
+            source: "Post-create action"
+        )
     }
 
     func openInspectedProjectInGodot() {
-        performGodotLaunch(projectURL: inspectedProjectSummary?.projectURL, source: "Project inspector action")
+        performGodotLaunch(
+            projectURL: inspectedProjectSummary?.projectURL,
+            template: inspectedProjectSummary?.detectedTemplate,
+            source: "Project inspector action"
+        )
     }
 
     func copyLastCreatedCodexStarterPrompt() {
@@ -906,7 +914,11 @@ final class AppViewModel: ObservableObject {
     }
 
     func openRecentProjectInGodot(_ project: RecentProject) {
-        performGodotLaunch(projectURL: project.projectURL, source: "Recent project action")
+        performGodotLaunch(
+            projectURL: project.projectURL,
+            template: project.template,
+            source: "Recent project action"
+        )
     }
 
     func copyRecentProjectPath(_ project: RecentProject) {
@@ -947,13 +959,19 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    private func performGodotLaunch(projectURL: URL?, source: String) {
+    private func performGodotLaunch(projectURL: URL?, template: ProjectTemplate?, source: String) {
         guard let projectURL else {
             log("\(source) skipped: no project is available yet.")
             return
         }
 
-        switch godotLaunchService.openProject(at: projectURL, configuredExecutablePath: settings.godotExecutablePath) {
+        let workflowSettings = workflowSettingsForProject(projectURL, template: template)
+
+        switch godotLaunchService.openProject(
+            at: projectURL,
+            projectOverridePath: workflowSettings.trimmedGodotPathOverride,
+            configuredExecutablePath: settings.godotExecutablePath
+        ) {
         case let .success(message):
             log(message)
         case let .failure(error):
