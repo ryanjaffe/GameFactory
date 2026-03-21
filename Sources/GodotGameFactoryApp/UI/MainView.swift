@@ -24,10 +24,58 @@ struct MainView: View {
                 ProjectSummaryView(viewModel: viewModel)
                 PromptPackView(viewModel: viewModel)
                 PostCreateActionsView(viewModel: viewModel)
+                RecentProjectsView(viewModel: viewModel)
 
                 LogPanelView(entries: viewModel.logEntries)
             }
             .padding(24)
+        }
+    }
+}
+
+private struct RecentProjectsView: View {
+    @ObservedObject var viewModel: AppViewModel
+
+    var body: some View {
+        if viewModel.hasRecentProjects {
+            GroupBox("Recent Projects") {
+                VStack(alignment: .leading, spacing: 14) {
+                    ForEach(viewModel.recentProjects) { project in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(alignment: .top) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(project.projectName)
+                                        .fontWeight(.medium)
+                                    Text(project.path)
+                                        .textSelection(.enabled)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer()
+
+                                Text(project.createdAtDisplayText)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Text("Template: \(project.template.rawValue)")
+                            Text("Git: \(project.gitInitialized ? "Ready" : "Not initialized")")
+                            Text("GitHub: \(project.gitHubStatus.displayText)")
+
+                            HStack {
+                                Button("Copy Path") {
+                                    viewModel.copyRecentProjectPath(project)
+                                }
+
+                                Button("Open in Finder") {
+                                    viewModel.openRecentProjectInFinder(project)
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 }

@@ -133,10 +133,21 @@ struct ProjectCreationSummary {
     }
 }
 
-enum ProjectIntegrationStatus: Equatable {
+enum ProjectIntegrationStatus: Equatable, Codable {
     case succeeded
     case skipped(String)
     case failed(String)
+
+    var indicatesSuccess: Bool {
+        switch self {
+        case .succeeded:
+            return true
+        case let .skipped(reason):
+            return reason == "Already initialized"
+        case .failed:
+            return false
+        }
+    }
 
     var label: String {
         switch self {

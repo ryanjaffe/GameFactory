@@ -22,9 +22,11 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var lastCreatedProjectURL: URL?
     @Published private(set) var lastCreatedTemplate: ProjectTemplate?
     @Published private(set) var lastCreatedSummary: ProjectCreationSummary?
+    @Published private(set) var recentProjects: [RecentProject]
 
     private let logger: AppLogger
     private let settingsStore: AppSettingsStore
+    private let recentProjectsStore: RecentProjectsStore
     private let generator: ProjectGenerator
     private let gitService: GitService
     private let gitHubService: GitHubService
@@ -41,6 +43,10 @@ final class AppViewModel: ObservableObject {
 
     var hasProjectSummary: Bool {
         lastCreatedSummary != nil
+    }
+
+    var hasRecentProjects: Bool {
+        !recentProjects.isEmpty
     }
 
     var lastCreatedProjectPath: String {
@@ -77,6 +83,7 @@ final class AppViewModel: ObservableObject {
 
     init(
         settingsStore: AppSettingsStore = AppSettingsStore(),
+        recentProjectsStore: RecentProjectsStore = RecentProjectsStore(),
         logger: AppLogger = AppLogger(),
         generator: ProjectGenerator = ProjectGenerator(),
         gitService: GitService = GitService(),
@@ -86,6 +93,7 @@ final class AppViewModel: ObservableObject {
         folderPickerService: FolderPickerService = FolderPickerService()
     ) {
         self.settingsStore = settingsStore
+        self.recentProjectsStore = recentProjectsStore
         self.logger = logger
         self.generator = generator
         self.gitService = gitService
@@ -94,6 +102,7 @@ final class AppViewModel: ObservableObject {
         self.codexPromptPackService = codexPromptPackService
         self.folderPickerService = folderPickerService
         self.settings = settingsStore.load()
+        self.recentProjects = recentProjectsStore.load()
         self.logEntries = logger.entries
 
         log("App initialized")
@@ -102,6 +111,9 @@ final class AppViewModel: ObservableObject {
         log("Git service ready: \(gitService.statusSummary)")
         log("GitHub service ready: \(gitHubService.statusSummary)")
         log("New Project form ready")
+        if !recentProjects.isEmpty {
+            log("Loaded \(recentProjects.count) recent projects")
+        }
         hasFinishedInitializing = true
     }
 
@@ -159,6 +171,9 @@ final class AppViewModel: ObservableObject {
                     createdDirectories: result.createdDirectories,
                     createdFiles: result.createdFiles
                 )
+                if let lastCreatedSummary {
+                    recordRecentProject(from: lastCreatedSummary)
+                }
                 log("GitHub setup skipped: local Git setup did not complete successfully.")
                 return
             }
@@ -182,6 +197,9 @@ final class AppViewModel: ObservableObject {
                 createdDirectories: result.createdDirectories,
                 createdFiles: result.createdFiles
             )
+            if let lastCreatedSummary {
+                recordRecentProject(from: lastCreatedSummary)
+            }
         } catch {
             log("Project generation failed: \(error.localizedDescription)")
         }
@@ -335,6 +353,24 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func openRecentProjectInFinder(_ project: RecentProject) {
+        switch postCreateActionService.openInFinder(projectURL: project.projectURL) {
+        case let .success(message):
+            log(message)
+        case let .failure(error):
+            log("Recent project action failed: \(error.localizedDescription)")
+        }
+    }
+
+    func copyRecentProjectPath(_ project: RecentProject) {
+        switch postCreateActionService.copyProjectPath(projectURL: project.projectURL) {
+        case let .success(message):
+            log(message)
+        case let .failure(error):
+            log("Recent project action failed: \(error.localizedDescription)")
+        }
+    }
+
     private func performPostCreateAction(
         _ action: (URL) -> Result<String, Error>
     ) {
@@ -404,5 +440,19 @@ final class AppViewModel: ObservableObject {
 
     private func skipReasonLike(_ messages: [String]) -> String? {
         messages.last(where: { $0.contains("skipped") || $0.contains("Skipping") })
+    }
+
+    private func recordRecentProject(from summary: ProjectCreationSummary) {
+        let recentProject = RecentProject(
+            path: summary.finalProjectURL.path,
+            projectName: summary.projectName,
+            template: summary.template,
+            createdAt: Date(),
+            gitInitialized: summary.gitStatus.indicatesSuccess,
+            gitHubStatus: summary.gitHubStatus
+        )
+
+        let updatedProjects = recentProjectsStore.record(recentProject)
+        recentProjects = updatedProjects
     }
 }
