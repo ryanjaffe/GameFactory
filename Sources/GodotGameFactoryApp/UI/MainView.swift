@@ -25,6 +25,7 @@ struct MainView: View {
                     NewProjectFormView(viewModel: viewModel)
                     ProjectInspectorView(viewModel: viewModel)
                     ProjectAuditView(viewModel: viewModel)
+                    AssetImportView(viewModel: viewModel)
                     ProjectSummaryView(viewModel: viewModel)
                     WorkflowFilesView(viewModel: viewModel)
                     PromptPackView(viewModel: viewModel)
@@ -37,6 +38,49 @@ struct MainView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(24)
             }
+        }
+    }
+}
+
+private struct AssetImportView: View {
+    @ObservedObject var viewModel: AppViewModel
+
+    var body: some View {
+        GroupBox("Asset Import") {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Copy selected files into the active project's art/ directory.")
+                    .foregroundStyle(.secondary)
+
+                if let activeProjectURL = viewModel.activeProjectURL {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Active Project")
+                            .fontWeight(.medium)
+                        Text(viewModel.activeProjectName)
+                        Text(activeProjectURL.path)
+                            .textSelection(.enabled)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Button("Import Assets") {
+                        viewModel.importAssets()
+                    }
+
+                    if let summary = viewModel.lastAssetImport {
+                        Text(summary.summaryText)
+                            .textSelection(.enabled)
+                            .foregroundStyle(.secondary)
+
+                        ForEach(summary.importedFiles) { importedFile in
+                            Text(importedFile.destinationURL.lastPathComponent)
+                        }
+                    } else {
+                        EmptyStateText("No assets imported yet for the current active project.")
+                    }
+                } else {
+                    EmptyStateText("No active project yet. Create, inspect, or select a project before importing assets.")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

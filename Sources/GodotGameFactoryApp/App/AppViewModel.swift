@@ -29,6 +29,7 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var presets: [ProjectPreset]
     @Published private(set) var inspectedProjectSummary: InspectedProjectSummary?
     @Published private(set) var lastProjectAudit: ProjectAuditSummary?
+    @Published private(set) var lastAssetImport: AssetImportSummary?
     @Published private(set) var selectedWorkflowProjectURL: URL?
     @Published private(set) var selectedWorkflowProjectName: String?
     @Published private(set) var selectedWorkflowProjectTemplate: ProjectTemplate?
@@ -54,6 +55,8 @@ final class AppViewModel: ObservableObject {
     private let godotLaunchService: GodotLaunchService
     private let projectInspectorService: ProjectInspectorService
     private let projectAuditService: ProjectAuditService
+    private let assetImportPickerService: AssetImportPickerService
+    private let assetImportService: AssetImportService
     private let workflowFileService: WorkflowFileService
     private var hasFinishedInitializing = false
     private var hasLoggedSaveFailure = false
@@ -91,6 +94,10 @@ final class AppViewModel: ObservableObject {
 
     var hasProjectAudit: Bool {
         lastProjectAudit != nil
+    }
+
+    var hasAssetImportSummary: Bool {
+        lastAssetImport != nil
     }
 
     var workflowFileTargetProjectURL: URL? {
@@ -214,6 +221,8 @@ final class AppViewModel: ObservableObject {
         godotLaunchService: GodotLaunchService = GodotLaunchService(),
         projectInspectorService: ProjectInspectorService = ProjectInspectorService(),
         projectAuditService: ProjectAuditService = ProjectAuditService(),
+        assetImportPickerService: AssetImportPickerService = AssetImportPickerService(),
+        assetImportService: AssetImportService = AssetImportService(),
         workflowFileService: WorkflowFileService = WorkflowFileService()
     ) {
         self.settingsStore = settingsStore
@@ -232,6 +241,8 @@ final class AppViewModel: ObservableObject {
         self.godotLaunchService = godotLaunchService
         self.projectInspectorService = projectInspectorService
         self.projectAuditService = projectAuditService
+        self.assetImportPickerService = assetImportPickerService
+        self.assetImportService = assetImportService
         self.workflowFileService = workflowFileService
         self.settings = settingsStore.load()
         self.presets = presetStore.load()
@@ -291,6 +302,7 @@ final class AppViewModel: ObservableObject {
             selectedWorkflowProjectTemplate = settings.template
             clearWorkflowEditor()
             clearProjectAudit()
+            clearAssetImport()
             for message in result.messages {
                 log(message)
             }
@@ -424,6 +436,7 @@ final class AppViewModel: ObservableObject {
         let summary = projectInspectorService.inspectProject(at: selectedProjectURL)
         inspectedProjectSummary = summary
         clearProjectAudit()
+        clearAssetImport()
 
         if summary.isValidProject {
             log("Inspected existing project: \(summary.projectURL.path)")
@@ -451,6 +464,7 @@ final class AppViewModel: ObservableObject {
         selectedWorkflowProjectTemplate = project.template
         clearWorkflowEditor()
         clearProjectAudit()
+        clearAssetImport()
         log("Workflow file target set to \(project.projectName).")
     }
 
@@ -470,6 +484,7 @@ final class AppViewModel: ObservableObject {
         selectedWorkflowProjectTemplate = inspectedProjectSummary.detectedTemplate
         clearWorkflowEditor()
         clearProjectAudit()
+        clearAssetImport()
         log("Workflow file target set to inspected project \(inspectedProjectSummary.projectName).")
     }
 
@@ -549,6 +564,28 @@ final class AppViewModel: ObservableObject {
         let audit = projectAuditService.runAudit(projectURL: activeProjectURL, template: activeProjectTemplate)
         lastProjectAudit = audit
         log("Project audit complete for \(audit.projectName).")
+    }
+
+    func importAssets() {
+        guard let activeProjectURL else {
+            log("Asset import skipped: no project is selected.")
+            return
+        }
+
+        let selectedFiles = assetImportPickerService.chooseFiles()
+        guard !selectedFiles.isEmpty else {
+            return
+        }
+
+        do {
+            let importSummary = try assetImportService.importAssets(from: selectedFiles, into: activeProjectURL)
+            lastAssetImport = importSummary
+            for importedFile in importSummary.importedFiles {
+                log("Imported asset: \(importedFile.destinationURL.lastPathComponent)")
+            }
+        } catch {
+            log("Asset import failed: \(error.localizedDescription)")
+        }
     }
 
     func revertWorkflowFile() {
@@ -895,6 +932,10 @@ final class AppViewModel: ObservableObject {
 
     private func clearProjectAudit() {
         lastProjectAudit = nil
+    }
+
+    private func clearAssetImport() {
+        lastAssetImport = nil
     }
 
     private var explicitWorkflowSelectionURL: URL? {
