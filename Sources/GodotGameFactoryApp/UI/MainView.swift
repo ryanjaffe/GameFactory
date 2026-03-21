@@ -18,7 +18,7 @@ struct MainView: View {
                         .font(.largeTitle)
                         .fontWeight(.semibold)
 
-                    Text("Create a Godot project scaffold, inspect the plan first when needed, and keep the generated workflow easy to continue in Codex.")
+                    Text("Create or inspect a Godot project, keep the workflow files editable, and hand the project off cleanly to Codex or Godot.")
                         .foregroundStyle(.secondary)
 
                     PresetsView(viewModel: viewModel)
@@ -51,18 +51,15 @@ private struct AssetStarterPacksView: View {
     var body: some View {
         GroupBox("Asset Starter Packs") {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Add a few small built-in placeholder assets to the active project without sourcing files externally.")
+                Text("Add a small built-in placeholder pack to the active project. Files are copied into `art/` using the same safe naming rules as manual imports.")
                     .foregroundStyle(.secondary)
 
                 if let activeProjectURL = viewModel.activeProjectURL {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Active Project")
-                            .fontWeight(.medium)
-                        Text(viewModel.activeProjectName)
-                        Text(activeProjectURL.path)
-                            .textSelection(.enabled)
-                            .foregroundStyle(.secondary)
-                    }
+                    ActiveProjectContextView(
+                        label: viewModel.activeProjectContextLabel,
+                        name: viewModel.activeProjectName,
+                        path: activeProjectURL.path
+                    )
 
                     ForEach(viewModel.assetStarterPacks) { pack in
                         VStack(alignment: .leading, spacing: 6) {
@@ -76,7 +73,7 @@ private struct AssetStarterPacksView: View {
                         }
                     }
                 } else {
-                    EmptyStateText("No active project yet. Create, inspect, or select a project before applying an asset starter pack.")
+                    EmptyStateText("No active project yet. Create, inspect, or select a project before applying a starter pack.")
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -90,18 +87,15 @@ private struct HandoffBundleView: View {
     var body: some View {
         GroupBox("Handoff Bundle") {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Copy a concise handoff package with project summary, file tree, audit state, asset context, recent import info, and the starter prompt.")
+                Text("Copy a concise handoff package with summary, file tree, audit state, starter prompt, and asset/import context when available.")
                     .foregroundStyle(.secondary)
 
                 if let activeProjectURL = viewModel.activeProjectURL {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Active Project")
-                            .fontWeight(.medium)
-                        Text(viewModel.activeProjectName)
-                        Text(activeProjectURL.path)
-                            .textSelection(.enabled)
-                            .foregroundStyle(.secondary)
-                    }
+                    ActiveProjectContextView(
+                        label: viewModel.activeProjectContextLabel,
+                        name: viewModel.activeProjectName,
+                        path: activeProjectURL.path
+                    )
 
                     Button("Copy Handoff Bundle") {
                         viewModel.copyHandoffBundle()
@@ -121,18 +115,15 @@ private struct AssetImportView: View {
     var body: some View {
         GroupBox("Asset Import") {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Copy selected files into the active project's art/ directory.")
+                Text("Copy selected files into the active project's `art/` directory. Originals stay untouched.")
                     .foregroundStyle(.secondary)
 
                 if let activeProjectURL = viewModel.activeProjectURL {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Active Project")
-                            .fontWeight(.medium)
-                        Text(viewModel.activeProjectName)
-                        Text(activeProjectURL.path)
-                            .textSelection(.enabled)
-                            .foregroundStyle(.secondary)
-                    }
+                    ActiveProjectContextView(
+                        label: viewModel.activeProjectContextLabel,
+                        name: viewModel.activeProjectName,
+                        path: activeProjectURL.path
+                    )
 
                     Button("Import Assets") {
                         viewModel.importAssets()
@@ -147,7 +138,7 @@ private struct AssetImportView: View {
                             Text(importedFile.destinationURL.lastPathComponent)
                         }
                     } else {
-                        EmptyStateText("No assets imported yet for the current active project.")
+                        EmptyStateText("No imported assets yet for this active project.")
                     }
                 } else {
                     EmptyStateText("No active project yet. Create, inspect, or select a project before importing assets.")
@@ -164,7 +155,7 @@ private struct ProjectInspectorView: View {
     var body: some View {
         GroupBox("Project Inspector") {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Open an existing project folder to inspect it without changing any files.")
+                Text("Open an existing project folder to inspect it, check the key workflow files, and make it the active project when needed.")
                     .foregroundStyle(.secondary)
 
                 Button("Open Existing Project") {
@@ -203,7 +194,7 @@ private struct ProjectInspectorView: View {
                         }
 
                         HStack {
-                            Button("Use for Workflow Files") {
+                            Button("Use as Active Project") {
                                 viewModel.useInspectedProjectForWorkflowFiles()
                             }
                             .disabled(!summary.isValidProject)
@@ -217,7 +208,9 @@ private struct ProjectInspectorView: View {
                                 viewModel.openInspectedProjectInCodex()
                             }
                             .disabled(!summary.isValidProject)
+                        }
 
+                        HStack {
                             Button("Copy Summary") {
                                 viewModel.copyInspectedProjectSummary()
                             }
@@ -259,7 +252,7 @@ private struct ProjectAuditView: View {
     var body: some View {
         GroupBox("Project Audit") {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Run a lightweight health check for the current active project context.")
+                Text("Run a quick health check for the active project and review the current workflow readiness.")
                     .foregroundStyle(.secondary)
 
                 Button("Run Audit") {
@@ -268,14 +261,11 @@ private struct ProjectAuditView: View {
                 .disabled(viewModel.activeProjectURL == nil)
 
                 if let activeProjectURL = viewModel.activeProjectURL {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Active Project")
-                            .fontWeight(.medium)
-                        Text(viewModel.activeProjectName)
-                        Text(activeProjectURL.path)
-                            .textSelection(.enabled)
-                            .foregroundStyle(.secondary)
-                    }
+                    ActiveProjectContextView(
+                        label: viewModel.activeProjectContextLabel,
+                        name: viewModel.activeProjectName,
+                        path: activeProjectURL.path
+                    )
                 }
 
                 if let audit = viewModel.lastProjectAudit {
@@ -387,7 +377,7 @@ private struct RecentProjectsView: View {
     var body: some View {
         GroupBox("Recent Projects") {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Recently created real projects are kept here for quick reuse across sessions.")
+                Text("Real project creations stay here for quick reopen, reuse, and handoff across sessions.")
                     .foregroundStyle(.secondary)
 
                 if viewModel.hasRecentProjects {
@@ -413,7 +403,7 @@ private struct RecentProjectsView: View {
                             Text("GitHub: \(project.gitHubStatus.displayText)")
 
                             HStack {
-                                Button("Use for Workflow Files") {
+                                Button("Use as Active Project") {
                                     viewModel.selectRecentProjectForWorkflowFiles(project)
                                 }
 
@@ -452,7 +442,7 @@ private struct PromptPackView: View {
         GroupBox("Codex Prompt Pack") {
             if viewModel.hasPromptPack, let selectedPrompt = viewModel.selectedPrompt {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("Use these template-aware prompts for the active project. Imported asset context is included when files are available under art/.")
+                    Text("Use these template-aware prompts for the active project. Imported asset context is included when files are available under `art/`.")
                         .foregroundStyle(.secondary)
 
                     Picker("Prompt", selection: $viewModel.selectedPromptKind) {
@@ -478,7 +468,7 @@ private struct PromptPackView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                EmptyStateText("No prompt pack yet. Create a real project first to unlock template-aware Codex prompts.")
+                EmptyStateText("No active project yet. Create, inspect, or select a project before using the prompt pack.")
             }
         }
     }
@@ -581,18 +571,15 @@ private struct WorkflowSettingsView: View {
     var body: some View {
         GroupBox("Workflow Settings") {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Edit small project-local workflow settings for the active project. Save writes `gamefactory.workflow.json`; Revert reloads from disk.")
+                Text("Edit small project-local settings for validation, handoff, and launch behavior. Save writes `gamefactory.workflow.json`; Revert reloads it from disk.")
                     .foregroundStyle(.secondary)
 
                 if let activeProjectURL = viewModel.activeProjectURL {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Active Project")
-                            .fontWeight(.medium)
-                        Text(viewModel.activeProjectName)
-                        Text(activeProjectURL.path)
-                            .textSelection(.enabled)
-                            .foregroundStyle(.secondary)
-                    }
+                    ActiveProjectContextView(
+                        label: viewModel.activeProjectContextLabel,
+                        name: viewModel.activeProjectName,
+                        path: activeProjectURL.path
+                    )
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Config File")
@@ -647,18 +634,15 @@ private struct WorkflowFilesView: View {
     var body: some View {
         GroupBox("Workflow Files") {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Inspect, edit, and restore the key generated workflow files for the active project.")
+                Text("Inspect, edit, and restore the key workflow files for the active project.")
                     .foregroundStyle(.secondary)
 
                 if viewModel.hasWorkflowFileTarget {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Current Project")
-                            .fontWeight(.medium)
-                        Text(viewModel.workflowFileTargetProjectName)
-                        Text(viewModel.workflowFileTargetProjectPath)
-                            .textSelection(.enabled)
-                            .foregroundStyle(.secondary)
-                    }
+                    ActiveProjectContextView(
+                        label: viewModel.activeProjectContextLabel,
+                        name: viewModel.workflowFileTargetProjectName,
+                        path: viewModel.workflowFileTargetProjectPath
+                    )
 
                     HStack {
                         ForEach(WorkflowFileKind.allCases) { file in
@@ -713,10 +697,10 @@ private struct WorkflowFilesView: View {
                             }
                         }
                     } else {
-                        EmptyStateText("Open AGENTS.md, README.md, or run_validation.sh to inspect and edit it here.")
+                        EmptyStateText("Open AGENTS.md, README.md, or run_validation.sh to inspect, edit, or restore it here.")
                     }
                 } else {
-                    EmptyStateText("No workflow files yet. Create a real project or choose one from Recent Projects to edit AGENTS.md, README.md, and run_validation.sh.")
+                    EmptyStateText("No active project yet. Create, inspect, or select a project before editing workflow files.")
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -730,7 +714,7 @@ private struct PostCreateActionsView: View {
     var body: some View {
         GroupBox("Last Created Project") {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Use these actions after a real project has been created.")
+                Text("Quick actions for the most recently created real project.")
                     .foregroundStyle(.secondary)
 
                 Text(viewModel.lastCreatedProjectPath)
@@ -753,13 +737,15 @@ private struct PostCreateActionsView: View {
                     }
                     .disabled(!viewModel.hasLastCreatedProject)
 
-                    Button("Copy Project Path") {
-                        viewModel.copyLastCreatedProjectPath()
-                    }
-                    .disabled(!viewModel.hasLastCreatedProject)
-
                     Button("Open in Terminal") {
                         viewModel.openLastCreatedProjectInTerminal()
+                    }
+                    .disabled(!viewModel.hasLastCreatedProject)
+                }
+
+                HStack {
+                    Button("Copy Project Path") {
+                        viewModel.copyLastCreatedProjectPath()
                     }
                     .disabled(!viewModel.hasLastCreatedProject)
 
@@ -848,5 +834,22 @@ private struct EmptyStateText: View {
         Text(message)
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct ActiveProjectContextView: View {
+    let label: String
+    let name: String
+    let path: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .fontWeight(.medium)
+            Text(name)
+            Text(path)
+                .textSelection(.enabled)
+                .foregroundStyle(.secondary)
+        }
     }
 }

@@ -166,6 +166,19 @@ final class AppViewModel: ObservableObject {
         activeProjectURL?.path ?? "No project selected yet."
     }
 
+    var activeProjectContextLabel: String {
+        switch activeProjectSource {
+        case .recent:
+            return "Active Project (Recent)"
+        case .inspected:
+            return "Active Project (Inspected)"
+        case .lastCreated:
+            return "Active Project (Last Created)"
+        case .none:
+            return "Active Project"
+        }
+    }
+
     var activeProjectTemplate: ProjectTemplate? {
         if explicitWorkflowSelectionURL != nil {
             return selectedWorkflowProjectTemplate
@@ -1329,6 +1342,29 @@ final class AppViewModel: ObservableObject {
         }
 
         return recentProjects.first(where: { $0.path == explicitWorkflowSelectionURL.path })
+    }
+
+    private var activeProjectSource: ActiveProjectSource {
+        if activeRecentProject != nil {
+            return .recent
+        }
+
+        if inspectedProjectSummary != nil {
+            return .inspected
+        }
+
+        if lastCreatedProjectURL != nil {
+            return .lastCreated
+        }
+
+        return .none
+    }
+
+    private enum ActiveProjectSource {
+        case recent
+        case inspected
+        case lastCreated
+        case none
     }
 
     private var currentWorkflowSettingsDraft: ProjectWorkflowSettings {
