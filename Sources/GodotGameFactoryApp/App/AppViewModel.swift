@@ -194,11 +194,11 @@ final class AppViewModel: ObservableObject {
     }
 
     var availablePromptPack: [CodexPrompt] {
-        guard let lastCreatedProjectURL, let lastCreatedTemplate else {
+        guard let activeProjectURL, let activeProjectTemplate else {
             return []
         }
 
-        return codexPromptPackService.promptPack(for: lastCreatedProjectURL, template: lastCreatedTemplate)
+        return codexPromptPackService.promptPack(for: activeProjectURL, template: activeProjectTemplate)
     }
 
     var hasPromptPack: Bool {

@@ -411,7 +411,7 @@ private struct PromptPackView: View {
         GroupBox("Codex Prompt Pack") {
             if viewModel.hasPromptPack, let selectedPrompt = viewModel.selectedPrompt {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("Use these template-aware prompts after a real project has been created.")
+                    Text("Use these template-aware prompts for the active project. Imported asset context is included when files are available under art/.")
                         .foregroundStyle(.secondary)
 
                     Picker("Prompt", selection: $viewModel.selectedPromptKind) {

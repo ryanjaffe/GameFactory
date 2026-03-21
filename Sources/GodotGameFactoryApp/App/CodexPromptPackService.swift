@@ -1,6 +1,12 @@
 import Foundation
 
 struct CodexPromptPackService {
+    private let assetPromptContextService: AssetPromptContextService
+
+    init(assetPromptContextService: AssetPromptContextService = AssetPromptContextService()) {
+        self.assetPromptContextService = assetPromptContextService
+    }
+
     func promptPack(for projectURL: URL, template: ProjectTemplate) -> [CodexPrompt] {
         CodexPromptKind.allCases.map { kind in
             CodexPrompt(
@@ -23,6 +29,7 @@ struct CodexPromptPackService {
         let agentsPath = projectURL.appendingPathComponent("AGENTS.md").path
         let validationTarget = ProjectTemplateSupport.validationTarget(for: template) ?? "no starter scene is configured yet"
         let templateContext = templateSpecificContext(for: kind, template: template)
+        let assetSummary = assetPromptContextService.assetSummary(for: projectURL)
 
         return """
         Read [AGENTS.md](\(agentsPath)) first.
@@ -31,6 +38,7 @@ struct CodexPromptPackService {
         Selected template: `\(template.rawValue)`.
         Validation entrypoint: `./run_validation.sh`.
         Starter validation target: `\(validationTarget)`.
+        \(assetSummary)
 
         Inspect the scaffold before editing.
         Make small changes only.
