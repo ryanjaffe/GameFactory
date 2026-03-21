@@ -24,11 +24,26 @@ struct MainView: View {
                 ProjectSummaryView(viewModel: viewModel)
                 PromptPackView(viewModel: viewModel)
                 PostCreateActionsView(viewModel: viewModel)
+                CodexHandoffStatusView(viewModel: viewModel)
                 RecentProjectsView(viewModel: viewModel)
 
                 LogPanelView(entries: viewModel.logEntries)
             }
             .padding(24)
+        }
+    }
+}
+
+private struct CodexHandoffStatusView: View {
+    @ObservedObject var viewModel: AppViewModel
+
+    var body: some View {
+        if let message = viewModel.codexHandoffMessage {
+            GroupBox("Codex Handoff") {
+                Text(message)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 }
@@ -62,6 +77,10 @@ private struct RecentProjectsView: View {
                             Text("GitHub: \(project.gitHubStatus.displayText)")
 
                             HStack {
+                                Button("Open in Codex") {
+                                    viewModel.openRecentProjectInCodex(project)
+                                }
+
                                 Button("Copy Path") {
                                     viewModel.copyRecentProjectPath(project)
                                 }
@@ -214,6 +233,11 @@ private struct PostCreateActionsView: View {
                     .foregroundStyle(viewModel.hasLastCreatedProject ? .primary : .secondary)
 
                 HStack {
+                    Button("Open in Codex") {
+                        viewModel.openLastCreatedProjectInCodex()
+                    }
+                    .disabled(!viewModel.hasLastCreatedProject)
+
                     Button("Open in Finder") {
                         viewModel.openLastCreatedProjectInFinder()
                     }

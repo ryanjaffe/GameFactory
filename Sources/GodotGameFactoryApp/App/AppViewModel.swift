@@ -23,6 +23,7 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var lastCreatedTemplate: ProjectTemplate?
     @Published private(set) var lastCreatedSummary: ProjectCreationSummary?
     @Published private(set) var recentProjects: [RecentProject]
+    @Published private(set) var codexHandoffMessage: String?
 
     private let logger: AppLogger
     private let settingsStore: AppSettingsStore
@@ -32,6 +33,7 @@ final class AppViewModel: ObservableObject {
     private let gitHubService: GitHubService
     private let postCreateActionService: PostCreateActionService
     private let codexPromptPackService: CodexPromptPackService
+    private let codexHandoffService: CodexHandoffService
     private let folderPickerService: FolderPickerService
     private var hasFinishedInitializing = false
     private var hasLoggedSaveFailure = false
@@ -90,6 +92,7 @@ final class AppViewModel: ObservableObject {
         gitHubService: GitHubService = GitHubService(),
         postCreateActionService: PostCreateActionService = PostCreateActionService(),
         codexPromptPackService: CodexPromptPackService = CodexPromptPackService(),
+        codexHandoffService: CodexHandoffService = CodexHandoffService(),
         folderPickerService: FolderPickerService = FolderPickerService()
     ) {
         self.settingsStore = settingsStore
@@ -100,6 +103,7 @@ final class AppViewModel: ObservableObject {
         self.gitHubService = gitHubService
         self.postCreateActionService = postCreateActionService
         self.codexPromptPackService = codexPromptPackService
+        self.codexHandoffService = codexHandoffService
         self.folderPickerService = folderPickerService
         self.settings = settingsStore.load()
         self.recentProjects = recentProjectsStore.load()
@@ -298,10 +302,12 @@ final class AppViewModel: ObservableObject {
     }
 
     func copyLastCreatedCodexStarterPrompt() {
-        guard let prompt = prompt(for: .starter) else {
+        guard let lastCreatedProjectURL, let lastCreatedTemplate else {
             log("Prompt action skipped: no prompt pack is available yet.")
             return
         }
+
+        let prompt = codexPromptPackService.starterPrompt(for: lastCreatedProjectURL, template: lastCreatedTemplate)
 
         switch postCreateActionService.copyPrompt(prompt.body, title: prompt.title) {
         case let .success(message):
@@ -369,6 +375,19 @@ final class AppViewModel: ObservableObject {
         case let .failure(error):
             log("Recent project action failed: \(error.localizedDescription)")
         }
+    }
+
+    func openLastCreatedProjectInCodex() {
+        guard let lastCreatedProjectURL, let lastCreatedTemplate else {
+            log("Codex handoff skipped: no created project is available yet.")
+            return
+        }
+
+        performCodexHandoff(projectURL: lastCreatedProjectURL, template: lastCreatedTemplate)
+    }
+
+    func openRecentProjectInCodex(_ project: RecentProject) {
+        performCodexHandoff(projectURL: project.projectURL, template: project.template)
     }
 
     private func performPostCreateAction(
@@ -440,6 +459,20 @@ final class AppViewModel: ObservableObject {
 
     private func skipReasonLike(_ messages: [String]) -> String? {
         messages.last(where: { $0.contains("skipped") || $0.contains("Skipping") })
+    }
+
+    private func performCodexHandoff(projectURL: URL, template: ProjectTemplate) {
+        switch codexHandoffService.openInCodex(projectURL: projectURL, template: template) {
+        case let .success(outcome):
+            for message in outcome.messages {
+                log(message)
+            }
+            codexHandoffMessage = outcome.nextStepMessage
+            log("Codex handoff ready for \(projectURL.lastPathComponent).")
+        case let .failure(error):
+            codexHandoffMessage = "Codex handoff could not start. \(error.localizedDescription)"
+            log("Codex handoff failed: \(error.localizedDescription)")
+        }
     }
 
     private func recordRecentProject(from summary: ProjectCreationSummary) {

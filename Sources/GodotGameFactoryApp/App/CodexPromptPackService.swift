@@ -11,6 +11,14 @@ struct CodexPromptPackService {
         }
     }
 
+    func starterPrompt(for projectURL: URL, template: ProjectTemplate) -> CodexPrompt {
+        CodexPrompt(
+            kind: .starter,
+            title: CodexPromptKind.starter.title,
+            body: promptBody(for: .starter, projectURL: projectURL, template: template)
+        )
+    }
+
     private func promptBody(for kind: CodexPromptKind, projectURL: URL, template: ProjectTemplate) -> String {
         let agentsPath = projectURL.appendingPathComponent("AGENTS.md").path
         let validationTarget = ProjectTemplateSupport.validationTarget(for: template) ?? "no starter scene is configured yet"
