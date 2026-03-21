@@ -607,7 +607,7 @@ private struct WorkflowFilesView: View {
     var body: some View {
         GroupBox("Workflow Files") {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Inspect and edit the key generated workflow files for the last created project or a selected recent project.")
+                Text("Inspect, edit, and restore the key generated workflow files for the active project.")
                     .foregroundStyle(.secondary)
 
                 if viewModel.hasWorkflowFileTarget {
@@ -660,6 +660,11 @@ private struct WorkflowFilesView: View {
                                     viewModel.revertWorkflowFile()
                                 }
                                 .disabled(!viewModel.canRevertWorkflowFile)
+
+                                Button(viewModel.workflowRepairActionTitle) {
+                                    viewModel.repairSelectedWorkflowFile()
+                                }
+                                .disabled(!viewModel.canRepairSelectedWorkflowFile)
 
                                 if viewModel.workflowFileHasUnsavedChanges {
                                     Text("Unsaved changes")

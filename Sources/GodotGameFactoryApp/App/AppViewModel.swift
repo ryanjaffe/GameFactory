@@ -38,6 +38,7 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var workflowEditorFilePath = ""
     @Published private(set) var workflowFileNotFound = false
     @Published private(set) var workflowFileHasUnsavedChanges = false
+    @Published private(set) var pendingWorkflowFileRepairConfirmation: WorkflowFileKind?
     @Published var workflowSettingsValidationTarget = "" {
         didSet { updateWorkflowSettingsDirtyStateIfNeeded() }
     }
@@ -75,6 +76,7 @@ final class AppViewModel: ObservableObject {
     private let assetImportService: AssetImportService
     private let handoffBundleService: HandoffBundleService
     private let workflowFileService: WorkflowFileService
+    private let workflowFileRepairService: WorkflowFileRepairService
     private let workflowSettingsService: ProjectWorkflowSettingsService
     private var hasFinishedInitializing = false
     private var hasLoggedSaveFailure = false
@@ -126,23 +128,15 @@ final class AppViewModel: ObservableObject {
     }
 
     var workflowFileTargetProjectURL: URL? {
-        selectedWorkflowProjectURL ?? lastCreatedProjectURL
+        activeProjectURL
     }
 
     var workflowFileTargetProjectName: String {
-        if let selectedWorkflowProjectName {
-            return selectedWorkflowProjectName
-        }
-
-        if let lastCreatedSummary {
-            return lastCreatedSummary.projectName
-        }
-
-        return workflowFileTargetProjectURL?.lastPathComponent ?? "No project selected"
+        activeProjectName
     }
 
     var workflowFileTargetProjectPath: String {
-        workflowFileTargetProjectURL?.path ?? "No project selected yet."
+        activeProjectPath
     }
 
     var activeProjectURL: URL? {
@@ -203,6 +197,26 @@ final class AppViewModel: ObservableObject {
 
     var canRevertWorkflowFile: Bool {
         hasWorkflowFileTarget && selectedWorkflowFile != nil
+    }
+
+    var canRepairSelectedWorkflowFile: Bool {
+        hasWorkflowFileTarget && selectedWorkflowFile != nil && !workflowFileHasUnsavedChanges
+    }
+
+    var workflowRepairActionTitle: String {
+        guard let selectedWorkflowFile else {
+            return "Restore Default"
+        }
+
+        if workflowFileNotFound {
+            return "Regenerate Missing \(selectedWorkflowFile.fileName)"
+        }
+
+        if pendingWorkflowFileRepairConfirmation == selectedWorkflowFile {
+            return "Confirm Restore Default"
+        }
+
+        return "Restore Default"
     }
 
     var hasOpenedWorkflowFile: Bool {
@@ -278,6 +292,7 @@ final class AppViewModel: ObservableObject {
         assetImportService: AssetImportService = AssetImportService(),
         handoffBundleService: HandoffBundleService = HandoffBundleService(),
         workflowFileService: WorkflowFileService = WorkflowFileService(),
+        workflowFileRepairService: WorkflowFileRepairService = WorkflowFileRepairService(),
         workflowSettingsService: ProjectWorkflowSettingsService = ProjectWorkflowSettingsService()
     ) {
         self.settingsStore = settingsStore
@@ -300,6 +315,7 @@ final class AppViewModel: ObservableObject {
         self.assetImportService = assetImportService
         self.handoffBundleService = handoffBundleService
         self.workflowFileService = workflowFileService
+        self.workflowFileRepairService = workflowFileRepairService
         self.workflowSettingsService = workflowSettingsService
         self.settings = settingsStore.load()
         self.presets = presetStore.load()
@@ -496,6 +512,7 @@ final class AppViewModel: ObservableObject {
             return
         }
 
+        clearExplicitWorkflowSelection()
         let summary = projectInspectorService.inspectProject(at: selectedProjectURL)
         inspectedProjectSummary = summary
         clearProjectAudit()
@@ -578,6 +595,7 @@ final class AppViewModel: ObservableObject {
         let loadResult = workflowFileService.loadFile(kind, projectURL: projectURL)
         selectedWorkflowFile = kind
         workflowEditorFilePath = loadResult.fileURL.path
+        pendingWorkflowFileRepairConfirmation = nil
 
         if loadResult.isMissing {
             workflowEditorText = ""
@@ -607,6 +625,9 @@ final class AppViewModel: ObservableObject {
     func updateWorkflowEditorText(_ text: String) {
         workflowEditorText = text
         workflowFileHasUnsavedChanges = text != workflowEditorOriginalText
+        if workflowFileHasUnsavedChanges {
+            pendingWorkflowFileRepairConfirmation = nil
+        }
     }
 
     func saveWorkflowFile() {
@@ -685,6 +706,54 @@ final class AppViewModel: ObservableObject {
         }
 
         openWorkflowFile(selectedWorkflowFile)
+    }
+
+    func repairSelectedWorkflowFile() {
+        guard let projectURL = workflowFileTargetProjectURL, let selectedWorkflowFile else {
+            log("Workflow file repair skipped: no file is selected.")
+            return
+        }
+
+        guard !workflowFileHasUnsavedChanges else {
+            log("Workflow file repair blocked: save or revert current changes first.")
+            return
+        }
+
+        if !workflowFileNotFound, pendingWorkflowFileRepairConfirmation != selectedWorkflowFile {
+            pendingWorkflowFileRepairConfirmation = selectedWorkflowFile
+            log("Restore default requested for \(selectedWorkflowFile.fileName). Press Confirm Restore Default to overwrite it.")
+            return
+        }
+
+        let template = activeProjectTemplate ?? .blank
+        if activeProjectTemplate == nil {
+            log("Workflow file repair note: template is unknown, using Blank defaults.")
+        }
+
+        let workflowSettings = workflowSettingsForProject(projectURL, template: activeProjectTemplate)
+
+        do {
+            let result = try workflowFileRepairService.regenerateFile(
+                kind: selectedWorkflowFile,
+                projectURL: projectURL,
+                projectName: activeProjectName,
+                gitHubUsername: settings.gitHubUsername,
+                repoVisibility: settings.repoVisibility,
+                template: template,
+                validationTargetOverride: workflowSettings.trimmedValidationTarget
+            )
+            pendingWorkflowFileRepairConfirmation = nil
+            openWorkflowFile(selectedWorkflowFile)
+            let actionVerb = result.restoredExistingFile ? "Restored default" : "Regenerated missing"
+            if result.isExecutable {
+                log("\(actionVerb) \(selectedWorkflowFile.fileName) and ensured it is executable.")
+            } else {
+                log("\(actionVerb) \(selectedWorkflowFile.fileName).")
+            }
+        } catch {
+            pendingWorkflowFileRepairConfirmation = nil
+            log("Workflow file repair failed: \(error.localizedDescription)")
+        }
     }
 
     func saveWorkflowSettings() {
@@ -1075,6 +1144,13 @@ final class AppViewModel: ObservableObject {
         workflowEditorFilePath = ""
         workflowFileNotFound = false
         workflowFileHasUnsavedChanges = false
+        pendingWorkflowFileRepairConfirmation = nil
+    }
+
+    private func clearExplicitWorkflowSelection() {
+        selectedWorkflowProjectURL = nil
+        selectedWorkflowProjectName = nil
+        selectedWorkflowProjectTemplate = nil
     }
 
     private func clearProjectAudit() {

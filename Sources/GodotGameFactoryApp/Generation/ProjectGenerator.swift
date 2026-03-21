@@ -85,6 +85,46 @@ struct ProjectGenerator {
         )
     }
 
+    func defaultWorkflowFile(
+        kind: WorkflowFileKind,
+        projectName: String,
+        projectURL: URL,
+        gitHubUsername: String,
+        repoVisibility: RepoVisibility,
+        template: ProjectTemplate,
+        validationTargetOverride: String? = nil
+    ) -> PlannedFile {
+        let trimmedProjectName = projectName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedGitHubUsername = gitHubUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let fileURL = projectURL.appendingPathComponent(kind.fileName)
+        let contents: String
+        let isExecutable: Bool
+
+        switch kind {
+        case .agents:
+            contents = agentsContents(
+                projectName: trimmedProjectName,
+                gitHubUsername: trimmedGitHubUsername,
+                repoVisibility: repoVisibility,
+                template: template,
+                validationTargetOverride: validationTargetOverride
+            )
+            isExecutable = false
+        case .readme:
+            contents = readmeContents(projectName: trimmedProjectName, template: template)
+            isExecutable = false
+        case .validation:
+            contents = runValidationScriptContents(
+                template: template,
+                validationTargetOverride: validationTargetOverride
+            )
+            isExecutable = true
+        }
+
+        return PlannedFile(url: fileURL, contents: contents, isExecutable: isExecutable)
+    }
+
     private func availableProjectURL(for requestedURL: URL) -> URL {
         guard fileManager.fileExists(atPath: requestedURL.path) else {
             return requestedURL
@@ -173,10 +213,13 @@ struct ProjectGenerator {
         projectName: String,
         gitHubUsername: String,
         repoVisibility: RepoVisibility,
-        template: ProjectTemplate
+        template: ProjectTemplate,
+        validationTargetOverride: String? = nil
     ) -> String {
         let usernameLine = gitHubUsername.isEmpty ? "- GitHub username is not configured yet" : "- Preferred GitHub username: \(gitHubUsername)"
-        let validationTarget = ProjectTemplateSupport.validationTarget(for: template) ?? "no starter scene is configured yet"
+        let validationTarget = validationTargetOverride?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? validationTargetOverride!.trimmingCharacters(in: .whitespacesAndNewlines)
+            : (ProjectTemplateSupport.validationTarget(for: template) ?? "no starter scene is configured yet")
         let validationNotes = ProjectTemplateSupport.validationNotesFilename(for: template)
 
         return """
@@ -230,8 +273,9 @@ struct ProjectGenerator {
         """
     }
 
-    private func runValidationScriptContents(template: ProjectTemplate) -> String {
-        let validationTarget = ProjectTemplateSupport.validationTarget(for: template)
+    private func runValidationScriptContents(template: ProjectTemplate, validationTargetOverride: String? = nil) -> String {
+        let trimmedOverride = validationTargetOverride?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let validationTarget = trimmedOverride.isEmpty ? ProjectTemplateSupport.validationTarget(for: template) : trimmedOverride
         let targetLine = validationTarget.map { "Starter scene: \($0)" } ?? "Starter scene: none configured yet"
         let sceneStatus = validationTarget.map {
             """
