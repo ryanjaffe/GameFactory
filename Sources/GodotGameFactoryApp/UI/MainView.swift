@@ -23,6 +23,7 @@ struct MainView: View {
 
                     PresetsView(viewModel: viewModel)
                     NewProjectFormView(viewModel: viewModel)
+                    ProjectInspectorView(viewModel: viewModel)
                     ProjectSummaryView(viewModel: viewModel)
                     WorkflowFilesView(viewModel: viewModel)
                     PromptPackView(viewModel: viewModel)
@@ -36,6 +37,101 @@ struct MainView: View {
                 .padding(24)
             }
         }
+    }
+}
+
+private struct ProjectInspectorView: View {
+    @ObservedObject var viewModel: AppViewModel
+
+    var body: some View {
+        GroupBox("Project Inspector") {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Open an existing project folder to inspect it without changing any files.")
+                    .foregroundStyle(.secondary)
+
+                Button("Open Existing Project") {
+                    viewModel.openExistingProject()
+                }
+
+                if let summary = viewModel.inspectedProjectSummary {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(summary.validationMessage)
+                            .foregroundStyle(summary.isValidProject ? Color.secondary : Color.orange)
+
+                        inspectorRow(label: "Project", value: summary.projectName)
+                        inspectorRow(label: "Path", value: summary.projectURL.path, selectable: true)
+                        inspectorRow(label: "Template", value: summary.templateDisplayName)
+                        inspectorRow(label: "project.godot", value: yesNo(summary.hasProjectGodot))
+                        inspectorRow(label: "AGENTS.md", value: yesNo(summary.hasAgentsFile))
+                        inspectorRow(label: "README.md", value: yesNo(summary.hasReadmeFile))
+                        inspectorRow(label: "run_validation.sh", value: yesNo(summary.hasValidationScript))
+                        inspectorRow(label: ".git", value: yesNo(summary.hasGitDirectory))
+                        inspectorRow(label: "Origin", value: summary.originRemoteStatus.displayText, selectable: summary.originRemoteStatus.detailText != nil)
+
+                        if let originDetail = summary.originRemoteStatus.detailText {
+                            Text(originDetail)
+                                .textSelection(.enabled)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Directories")
+                                .fontWeight(.medium)
+                            Text("scenes/: \(yesNo(summary.hasScenesDirectory))")
+                            Text("scripts/: \(yesNo(summary.hasScriptsDirectory))")
+                            Text("art/: \(yesNo(summary.hasArtDirectory))")
+                            Text("tests/: \(yesNo(summary.hasTestsDirectory))")
+                            Text("artifacts/: \(yesNo(summary.hasArtifactsDirectory))")
+                        }
+
+                        HStack {
+                            Button("Use for Workflow Files") {
+                                viewModel.useInspectedProjectForWorkflowFiles()
+                            }
+                            .disabled(!summary.isValidProject)
+
+                            Button("Open in Godot") {
+                                viewModel.openInspectedProjectInGodot()
+                            }
+                            .disabled(!summary.isValidProject)
+
+                            Button("Open in Codex") {
+                                viewModel.openInspectedProjectInCodex()
+                            }
+                            .disabled(!summary.isValidProject)
+
+                            Button("Copy Summary") {
+                                viewModel.copyInspectedProjectSummary()
+                            }
+
+                            Button("Copy File Tree") {
+                                viewModel.copyInspectedProjectFileTree()
+                            }
+                        }
+                    }
+                } else {
+                    EmptyStateText("No existing project inspected yet. Choose a folder to see whether it looks like a Godot project and to reuse the current workflow tools.")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func inspectorRow(label: String, value: String, selectable: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .fontWeight(.medium)
+            if selectable {
+                Text(value)
+                    .textSelection(.enabled)
+            } else {
+                Text(value)
+            }
+        }
+    }
+
+    private func yesNo(_ value: Bool) -> String {
+        value ? "Yes" : "No"
     }
 }
 

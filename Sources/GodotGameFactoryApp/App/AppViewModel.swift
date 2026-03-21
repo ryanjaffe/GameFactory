@@ -27,6 +27,7 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var recentProjects: [RecentProject]
     @Published private(set) var codexHandoffMessage: String?
     @Published private(set) var presets: [ProjectPreset]
+    @Published private(set) var inspectedProjectSummary: InspectedProjectSummary?
     @Published private(set) var selectedWorkflowProjectURL: URL?
     @Published private(set) var selectedWorkflowProjectName: String?
     @Published private(set) var selectedWorkflowFile: WorkflowFileKind?
@@ -46,8 +47,10 @@ final class AppViewModel: ObservableObject {
     private let codexPromptPackService: CodexPromptPackService
     private let codexHandoffService: CodexHandoffService
     private let folderPickerService: FolderPickerService
+    private let existingProjectPickerService: ExistingProjectPickerService
     private let godotPathPickerService: GodotPathPickerService
     private let godotLaunchService: GodotLaunchService
+    private let projectInspectorService: ProjectInspectorService
     private let workflowFileService: WorkflowFileService
     private var hasFinishedInitializing = false
     private var hasLoggedSaveFailure = false
@@ -77,6 +80,10 @@ final class AppViewModel: ObservableObject {
 
     var hasRecentProjects: Bool {
         !recentProjects.isEmpty
+    }
+
+    var hasInspectedProject: Bool {
+        inspectedProjectSummary != nil
     }
 
     var workflowFileTargetProjectURL: URL? {
@@ -167,8 +174,10 @@ final class AppViewModel: ObservableObject {
         codexPromptPackService: CodexPromptPackService = CodexPromptPackService(),
         codexHandoffService: CodexHandoffService = CodexHandoffService(),
         folderPickerService: FolderPickerService = FolderPickerService(),
+        existingProjectPickerService: ExistingProjectPickerService = ExistingProjectPickerService(),
         godotPathPickerService: GodotPathPickerService = GodotPathPickerService(),
         godotLaunchService: GodotLaunchService = GodotLaunchService(),
+        projectInspectorService: ProjectInspectorService = ProjectInspectorService(),
         workflowFileService: WorkflowFileService = WorkflowFileService()
     ) {
         self.settingsStore = settingsStore
@@ -182,8 +191,10 @@ final class AppViewModel: ObservableObject {
         self.codexPromptPackService = codexPromptPackService
         self.codexHandoffService = codexHandoffService
         self.folderPickerService = folderPickerService
+        self.existingProjectPickerService = existingProjectPickerService
         self.godotPathPickerService = godotPathPickerService
         self.godotLaunchService = godotLaunchService
+        self.projectInspectorService = projectInspectorService
         self.workflowFileService = workflowFileService
         self.settings = settingsStore.load()
         self.presets = presetStore.load()
@@ -366,6 +377,21 @@ final class AppViewModel: ObservableObject {
         settings.baseDirectory = selectedFolderURL.path
     }
 
+    func openExistingProject() {
+        guard let selectedProjectURL = existingProjectPickerService.chooseProjectFolder() else {
+            return
+        }
+
+        let summary = projectInspectorService.inspectProject(at: selectedProjectURL)
+        inspectedProjectSummary = summary
+
+        if summary.isValidProject {
+            log("Inspected existing project: \(summary.projectURL.path)")
+        } else {
+            log("Existing project inspection warning: \(summary.validationMessage)")
+        }
+    }
+
     func chooseGodotExecutablePath() {
         guard let selectedExecutableURL = godotPathPickerService.chooseGodotExecutable() else {
             return
@@ -384,6 +410,23 @@ final class AppViewModel: ObservableObject {
         selectedWorkflowProjectName = project.projectName
         clearWorkflowEditor()
         log("Workflow file target set to \(project.projectName).")
+    }
+
+    func useInspectedProjectForWorkflowFiles() {
+        guard let inspectedProjectSummary else {
+            log("Workflow file target skipped: no inspected project is available.")
+            return
+        }
+
+        guard !workflowFileHasUnsavedChanges else {
+            log("Workflow file selection blocked: save or revert current changes first.")
+            return
+        }
+
+        selectedWorkflowProjectURL = inspectedProjectSummary.projectURL
+        selectedWorkflowProjectName = inspectedProjectSummary.projectName
+        clearWorkflowEditor()
+        log("Workflow file target set to inspected project \(inspectedProjectSummary.projectName).")
     }
 
     func openWorkflowFile(_ kind: WorkflowFileKind) {
@@ -535,6 +578,10 @@ final class AppViewModel: ObservableObject {
         performGodotLaunch(projectURL: lastCreatedProjectURL, source: "Post-create action")
     }
 
+    func openInspectedProjectInGodot() {
+        performGodotLaunch(projectURL: inspectedProjectSummary?.projectURL, source: "Project inspector action")
+    }
+
     func copyLastCreatedCodexStarterPrompt() {
         guard let lastCreatedProjectURL, let lastCreatedTemplate else {
             log("Prompt action skipped: no prompt pack is available yet.")
@@ -549,6 +596,19 @@ final class AppViewModel: ObservableObject {
         case let .failure(error):
             log("Prompt action failed: \(error.localizedDescription)")
         }
+    }
+
+    func openInspectedProjectInCodex() {
+        guard let inspectedProjectSummary else {
+            log("Codex handoff skipped: no inspected project is available yet.")
+            return
+        }
+
+        if inspectedProjectSummary.detectedTemplate == nil {
+            log("Codex handoff note: template is unknown, using the generic Blank prompt.")
+        }
+
+        performCodexHandoff(projectURL: inspectedProjectSummary.projectURL, template: inspectedProjectSummary.codexTemplate)
     }
 
     func copySelectedPrompt() {
@@ -579,9 +639,37 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func copyInspectedProjectSummary() {
+        guard let summaryText = inspectedProjectSummary?.summaryText else {
+            log("Summary action skipped: no inspected project summary is available yet.")
+            return
+        }
+
+        switch postCreateActionService.copySummary(summaryText) {
+        case let .success(message):
+            log(message)
+        case let .failure(error):
+            log("Summary action failed: \(error.localizedDescription)")
+        }
+    }
+
     func copyLastCreatedFileTree() {
         guard let fileTreeText = lastCreatedFileTreeText else {
             log("Summary action skipped: no created project summary is available yet.")
+            return
+        }
+
+        switch postCreateActionService.copyFileTree(fileTreeText) {
+        case let .success(message):
+            log(message)
+        case let .failure(error):
+            log("Summary action failed: \(error.localizedDescription)")
+        }
+    }
+
+    func copyInspectedProjectFileTree() {
+        guard let fileTreeText = inspectedProjectSummary?.fileTreeText else {
+            log("Summary action skipped: no inspected project summary is available yet.")
             return
         }
 
