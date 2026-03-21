@@ -20,6 +20,7 @@ final class AppViewModel: ObservableObject {
     @Published var dryRunEnabled = false
     @Published private(set) var lastCreatedProjectURL: URL?
     @Published private(set) var lastCreatedTemplate: ProjectTemplate?
+    @Published private(set) var lastCreatedSummary: ProjectCreationSummary?
 
     private let logger: AppLogger
     private let settingsStore: AppSettingsStore
@@ -35,6 +36,10 @@ final class AppViewModel: ObservableObject {
         lastCreatedProjectURL != nil
     }
 
+    var hasProjectSummary: Bool {
+        lastCreatedSummary != nil
+    }
+
     var lastCreatedProjectPath: String {
         lastCreatedProjectURL?.path ?? "No project created yet."
     }
@@ -45,6 +50,14 @@ final class AppViewModel: ObservableObject {
         }
 
         return postCreateActionService.starterPrompt(for: lastCreatedProjectURL, template: lastCreatedTemplate)
+    }
+
+    var lastCreatedSummaryText: String? {
+        lastCreatedSummary?.summaryText
+    }
+
+    var lastCreatedFileTreeText: String? {
+        lastCreatedSummary?.fileTreeText
     }
 
     init(
@@ -115,7 +128,18 @@ final class AppViewModel: ObservableObject {
                 log(message)
             }
 
+            let gitStatus = integrationStatus(from: gitResult)
+
             guard gitResult.succeeded else {
+                lastCreatedSummary = ProjectCreationSummary(
+                    projectName: trimmedName,
+                    finalProjectURL: result.finalProjectURL,
+                    template: settings.template,
+                    gitStatus: gitStatus,
+                    gitHubStatus: .skipped("Local Git setup did not complete successfully"),
+                    createdDirectories: result.createdDirectories,
+                    createdFiles: result.createdFiles
+                )
                 log("GitHub setup skipped: local Git setup did not complete successfully.")
                 return
             }
@@ -129,6 +153,16 @@ final class AppViewModel: ObservableObject {
             for message in gitHubResult.messages {
                 log(message)
             }
+
+            lastCreatedSummary = ProjectCreationSummary(
+                projectName: trimmedName,
+                finalProjectURL: result.finalProjectURL,
+                template: settings.template,
+                gitStatus: gitStatus,
+                gitHubStatus: integrationStatus(from: gitHubResult),
+                createdDirectories: result.createdDirectories,
+                createdFiles: result.createdFiles
+            )
         } catch {
             log("Project generation failed: \(error.localizedDescription)")
         }
@@ -227,6 +261,34 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    func copyLastCreatedSummary() {
+        guard let summaryText = lastCreatedSummaryText else {
+            log("Summary action skipped: no created project summary is available yet.")
+            return
+        }
+
+        switch postCreateActionService.copySummary(summaryText) {
+        case let .success(message):
+            log(message)
+        case let .failure(error):
+            log("Summary action failed: \(error.localizedDescription)")
+        }
+    }
+
+    func copyLastCreatedFileTree() {
+        guard let fileTreeText = lastCreatedFileTreeText else {
+            log("Summary action skipped: no created project summary is available yet.")
+            return
+        }
+
+        switch postCreateActionService.copyFileTree(fileTreeText) {
+        case let .success(message):
+            log(message)
+        case let .failure(error):
+            log("Summary action failed: \(error.localizedDescription)")
+        }
+    }
+
     private func performPostCreateAction(
         _ action: (URL) -> Result<String, Error>
     ) {
@@ -241,5 +303,32 @@ final class AppViewModel: ObservableObject {
         case let .failure(error):
             log("Post-create action failed: \(error.localizedDescription)")
         }
+    }
+
+    private func integrationStatus(from result: GitInitializationResult) -> ProjectIntegrationStatus {
+        if result.succeeded {
+            return result.skipped ? .skipped("Already initialized") : .succeeded
+        }
+
+        if result.skipped {
+            return .skipped("Git unavailable")
+        }
+
+        return .failed("Initialization failed")
+    }
+
+    private func integrationStatus(from result: GitHubSetupResult) -> ProjectIntegrationStatus {
+        if result.succeeded {
+            return result.skipped ? .skipped("Origin already exists") : .succeeded
+        }
+
+        if result.skipped {
+            if let skipReason = result.messages.last(where: { $0.contains("skipped") || $0.contains("Skipping") || $0.contains("authenticated") || $0.contains("username") }) {
+                return .skipped(skipReason)
+            }
+            return .skipped("Setup skipped")
+        }
+
+        return .failed("Setup failed")
     }
 }

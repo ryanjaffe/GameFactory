@@ -22,12 +22,7 @@ struct PostCreateActionService {
     }
 
     func copyProjectPath(projectURL: URL) -> Result<String, Error> {
-        pasteboard.clearContents()
-        let didCopy = pasteboard.setString(projectURL.path, forType: .string)
-        guard didCopy else {
-            return .failure(PostCreateActionError.clipboardWriteFailed)
-        }
-        return .success("Copied project path.")
+        copyText(projectURL.path, successMessage: "Copied project path.")
     }
 
     func openInTerminal(projectURL: URL) -> Result<String, Error> {
@@ -51,12 +46,15 @@ struct PostCreateActionService {
 
     func copyCodexStarterPrompt(projectURL: URL, template: ProjectTemplate) -> Result<String, Error> {
         let prompt = starterPrompt(for: projectURL, template: template)
-        pasteboard.clearContents()
-        let didCopy = pasteboard.setString(prompt, forType: .string)
-        guard didCopy else {
-            return .failure(PostCreateActionError.clipboardWriteFailed)
-        }
-        return .success("Copied Codex starter prompt.")
+        return copyText(prompt, successMessage: "Copied Codex starter prompt.")
+    }
+
+    func copySummary(_ summaryText: String) -> Result<String, Error> {
+        copyText(summaryText, successMessage: "Copied project summary.")
+    }
+
+    func copyFileTree(_ fileTreeText: String) -> Result<String, Error> {
+        copyText(fileTreeText, successMessage: "Copied project file tree.")
     }
 
     func starterPrompt(for projectURL: URL, template: ProjectTemplate) -> String {
@@ -79,6 +77,15 @@ struct PostCreateActionService {
             executablePath: "/usr/bin/open",
             arguments: ["-a", "Terminal", projectURL.path]
         )
+    }
+
+    private func copyText(_ text: String, successMessage: String) -> Result<String, Error> {
+        pasteboard.clearContents()
+        let didCopy = pasteboard.setString(text, forType: .string)
+        guard didCopy else {
+            return .failure(PostCreateActionError.clipboardWriteFailed)
+        }
+        return .success(successMessage)
     }
 }
 

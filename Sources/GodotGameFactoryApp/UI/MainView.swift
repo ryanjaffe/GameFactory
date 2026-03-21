@@ -21,11 +21,74 @@ struct MainView: View {
                     .foregroundStyle(.secondary)
 
                 NewProjectFormView(viewModel: viewModel)
+                ProjectSummaryView(viewModel: viewModel)
                 PostCreateActionsView(viewModel: viewModel)
 
                 LogPanelView(entries: viewModel.logEntries)
             }
             .padding(24)
+        }
+    }
+}
+
+private struct ProjectSummaryView: View {
+    @ObservedObject var viewModel: AppViewModel
+
+    var body: some View {
+        if let summary = viewModel.lastCreatedSummary {
+            GroupBox("Project Summary") {
+                VStack(alignment: .leading, spacing: 14) {
+                    summaryRow(label: "Project", value: summary.projectName)
+                    summaryRow(label: "Path", value: summary.finalProjectURL.path, selectable: true)
+                    summaryRow(label: "Template", value: summary.template.rawValue)
+                    statusRow(label: "Git", status: summary.gitStatus)
+                    statusRow(label: "GitHub", status: summary.gitHubStatus)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Workflow Files")
+                            .fontWeight(.medium)
+                        ForEach(summary.workflowFiles, id: \.self) { file in
+                            Text(file)
+                        }
+                    }
+
+                    HStack {
+                        Button("Copy Summary") {
+                            viewModel.copyLastCreatedSummary()
+                        }
+
+                        Button("Copy File Tree") {
+                            viewModel.copyLastCreatedFileTree()
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private func summaryRow(label: String, value: String, selectable: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .fontWeight(.medium)
+            if selectable {
+                Text(value)
+                    .textSelection(.enabled)
+            } else {
+                Text(value)
+            }
+        }
+    }
+
+    private func statusRow(label: String, status: ProjectIntegrationStatus) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .fontWeight(.medium)
+            Text(status.title)
+            if let detail = status.detail {
+                Text(detail)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 }
