@@ -7,31 +7,58 @@ struct CodexPromptPackService {
         self.assetPromptContextService = assetPromptContextService
     }
 
-    func promptPack(for projectURL: URL, template: ProjectTemplate) -> [CodexPrompt] {
+    func promptPack(
+        for projectURL: URL,
+        template: ProjectTemplate,
+        workflowSettings: ProjectWorkflowSettings? = nil
+    ) -> [CodexPrompt] {
         CodexPromptKind.allCases.map { kind in
             CodexPrompt(
                 kind: kind,
                 title: kind.title,
-                body: promptBody(for: kind, projectURL: projectURL, template: template)
+                body: promptBody(
+                    for: kind,
+                    projectURL: projectURL,
+                    template: template,
+                    workflowSettings: workflowSettings
+                )
             )
         }
     }
 
-    func starterPrompt(for projectURL: URL, template: ProjectTemplate) -> CodexPrompt {
+    func starterPrompt(
+        for projectURL: URL,
+        template: ProjectTemplate,
+        workflowSettings: ProjectWorkflowSettings? = nil
+    ) -> CodexPrompt {
         CodexPrompt(
             kind: .starter,
             title: CodexPromptKind.starter.title,
-            body: promptBody(for: .starter, projectURL: projectURL, template: template)
+            body: promptBody(
+                for: .starter,
+                projectURL: projectURL,
+                template: template,
+                workflowSettings: workflowSettings
+            )
         )
     }
 
-    private func promptBody(for kind: CodexPromptKind, projectURL: URL, template: ProjectTemplate) -> String {
+    private func promptBody(
+        for kind: CodexPromptKind,
+        projectURL: URL,
+        template: ProjectTemplate,
+        workflowSettings: ProjectWorkflowSettings?
+    ) -> String {
         let agentsPath = projectURL.appendingPathComponent("AGENTS.md").path
-        let validationTarget = ProjectTemplateSupport.validationTarget(for: template) ?? "no starter scene is configured yet"
+        let validationTarget = workflowSettings?.effectiveValidationTarget(for: template) ??
+            (ProjectTemplateSupport.validationTarget(for: template) ?? "no starter scene is configured yet")
         let templateContext = templateSpecificContext(for: kind, template: template)
         let assetSummary = assetPromptContextService.assetSummary(for: projectURL)
+        let handoffNote = workflowSettings?.trimmedHandoffNote ?? ""
+        let handoffNoteSection = handoffNote.isEmpty ? nil : "Project handoff note: \(handoffNote)"
 
-        return """
+        let sections = [
+            """
         Read [AGENTS.md](\(agentsPath)) first.
 
         Work in the generated project at `\(projectURL.path)`.
@@ -39,6 +66,9 @@ struct CodexPromptPackService {
         Validation entrypoint: `./run_validation.sh`.
         Starter validation target: `\(validationTarget)`.
         \(assetSummary)
+        """,
+            handoffNoteSection,
+            """
 
         Inspect the scaffold before editing.
         Make small changes only.
@@ -48,6 +78,9 @@ struct CodexPromptPackService {
         Task:
         \(templateContext)
         """
+        ]
+
+        return sections.compactMap { $0 }.joined(separator: "\n\n")
     }
 
     private func templateSpecificContext(for kind: CodexPromptKind, template: ProjectTemplate) -> String {

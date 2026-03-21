@@ -38,6 +38,22 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var workflowEditorFilePath = ""
     @Published private(set) var workflowFileNotFound = false
     @Published private(set) var workflowFileHasUnsavedChanges = false
+    @Published var workflowSettingsValidationTarget = "" {
+        didSet { updateWorkflowSettingsDirtyStateIfNeeded() }
+    }
+    @Published var workflowSettingsGodotPathOverride = "" {
+        didSet { updateWorkflowSettingsDirtyStateIfNeeded() }
+    }
+    @Published var workflowSettingsHandoffNote = "" {
+        didSet { updateWorkflowSettingsDirtyStateIfNeeded() }
+    }
+    @Published var workflowSettingsProjectNote = "" {
+        didSet { updateWorkflowSettingsDirtyStateIfNeeded() }
+    }
+    @Published private(set) var workflowSettingsConfigPath = ""
+    @Published private(set) var workflowSettingsStatusMessage = ""
+    @Published private(set) var workflowSettingsHasUnsavedChanges = false
+    @Published private(set) var workflowSettingsUsingDefaults = true
 
     private let logger: AppLogger
     private let settingsStore: AppSettingsStore
@@ -59,10 +75,14 @@ final class AppViewModel: ObservableObject {
     private let assetImportService: AssetImportService
     private let handoffBundleService: HandoffBundleService
     private let workflowFileService: WorkflowFileService
+    private let workflowSettingsService: ProjectWorkflowSettingsService
     private var hasFinishedInitializing = false
     private var hasLoggedSaveFailure = false
     private var hasSavedSettings = false
     private var workflowEditorOriginalText = ""
+    private var workflowSettingsOriginal = ProjectWorkflowSettings.defaults(for: nil)
+    private var workflowSettingsLoadedProjectURL: URL?
+    private var isUpdatingWorkflowSettingsDraft = false
 
     var hasLastCreatedProject: Bool {
         lastCreatedProjectURL != nil
@@ -161,6 +181,18 @@ final class AppViewModel: ObservableObject {
         workflowFileTargetProjectURL != nil
     }
 
+    var hasWorkflowSettingsTarget: Bool {
+        activeProjectURL != nil
+    }
+
+    var canSaveWorkflowSettings: Bool {
+        hasWorkflowSettingsTarget && workflowSettingsHasUnsavedChanges
+    }
+
+    var canRevertWorkflowSettings: Bool {
+        hasWorkflowSettingsTarget
+    }
+
     var canEditWorkflowFile: Bool {
         hasWorkflowFileTarget && selectedWorkflowFile != nil && !workflowFileNotFound
     }
@@ -182,7 +214,15 @@ final class AppViewModel: ObservableObject {
     }
 
     var lastCreatedCodexStarterPrompt: String? {
-        prompt(for: .starter)?.body
+        guard let lastCreatedProjectURL, let lastCreatedTemplate else {
+            return nil
+        }
+
+        return codexPromptPackService.starterPrompt(
+            for: lastCreatedProjectURL,
+            template: lastCreatedTemplate,
+            workflowSettings: workflowSettingsForProject(lastCreatedProjectURL, template: lastCreatedTemplate)
+        ).body
     }
 
     var lastCreatedSummaryText: String? {
@@ -198,7 +238,11 @@ final class AppViewModel: ObservableObject {
             return []
         }
 
-        return codexPromptPackService.promptPack(for: activeProjectURL, template: activeProjectTemplate)
+        return codexPromptPackService.promptPack(
+            for: activeProjectURL,
+            template: activeProjectTemplate,
+            workflowSettings: workflowSettingsForProject(activeProjectURL, template: activeProjectTemplate)
+        )
     }
 
     var hasPromptPack: Bool {
@@ -233,7 +277,8 @@ final class AppViewModel: ObservableObject {
         assetImportPickerService: AssetImportPickerService = AssetImportPickerService(),
         assetImportService: AssetImportService = AssetImportService(),
         handoffBundleService: HandoffBundleService = HandoffBundleService(),
-        workflowFileService: WorkflowFileService = WorkflowFileService()
+        workflowFileService: WorkflowFileService = WorkflowFileService(),
+        workflowSettingsService: ProjectWorkflowSettingsService = ProjectWorkflowSettingsService()
     ) {
         self.settingsStore = settingsStore
         self.presetStore = presetStore
@@ -255,6 +300,7 @@ final class AppViewModel: ObservableObject {
         self.assetImportService = assetImportService
         self.handoffBundleService = handoffBundleService
         self.workflowFileService = workflowFileService
+        self.workflowSettingsService = workflowSettingsService
         self.settings = settingsStore.load()
         self.presets = presetStore.load()
         self.recentProjects = recentProjectsStore.load()
@@ -314,6 +360,7 @@ final class AppViewModel: ObservableObject {
             clearWorkflowEditor()
             clearProjectAudit()
             clearAssetImport()
+            loadWorkflowSettings(for: result.finalProjectURL, template: settings.template)
             for message in result.messages {
                 log(message)
             }
@@ -440,6 +487,11 @@ final class AppViewModel: ObservableObject {
     }
 
     func openExistingProject() {
+        guard !workflowSettingsHasUnsavedChanges else {
+            log("Project switch blocked: save or revert workflow settings first.")
+            return
+        }
+
         guard let selectedProjectURL = existingProjectPickerService.chooseProjectFolder() else {
             return
         }
@@ -448,6 +500,7 @@ final class AppViewModel: ObservableObject {
         inspectedProjectSummary = summary
         clearProjectAudit()
         clearAssetImport()
+        loadWorkflowSettings(for: selectedProjectURL, template: summary.detectedTemplate)
 
         if summary.isValidProject {
             log("Inspected existing project: \(summary.projectURL.path)")
@@ -470,12 +523,18 @@ final class AppViewModel: ObservableObject {
             return
         }
 
+        guard !workflowSettingsHasUnsavedChanges else {
+            log("Project switch blocked: save or revert workflow settings first.")
+            return
+        }
+
         selectedWorkflowProjectURL = project.projectURL
         selectedWorkflowProjectName = project.projectName
         selectedWorkflowProjectTemplate = project.template
         clearWorkflowEditor()
         clearProjectAudit()
         clearAssetImport()
+        loadWorkflowSettings(for: project.projectURL, template: project.template)
         log("Workflow file target set to \(project.projectName).")
     }
 
@@ -490,12 +549,18 @@ final class AppViewModel: ObservableObject {
             return
         }
 
+        guard !workflowSettingsHasUnsavedChanges else {
+            log("Project switch blocked: save or revert workflow settings first.")
+            return
+        }
+
         selectedWorkflowProjectURL = inspectedProjectSummary.projectURL
         selectedWorkflowProjectName = inspectedProjectSummary.projectName
         selectedWorkflowProjectTemplate = inspectedProjectSummary.detectedTemplate
         clearWorkflowEditor()
         clearProjectAudit()
         clearAssetImport()
+        loadWorkflowSettings(for: inspectedProjectSummary.projectURL, template: inspectedProjectSummary.detectedTemplate)
         log("Workflow file target set to inspected project \(inspectedProjectSummary.projectName).")
     }
 
@@ -622,6 +687,35 @@ final class AppViewModel: ObservableObject {
         openWorkflowFile(selectedWorkflowFile)
     }
 
+    func saveWorkflowSettings() {
+        guard let activeProjectURL else {
+            log("Workflow settings save skipped: no project is selected.")
+            return
+        }
+
+        do {
+            let fileURL = try workflowSettingsService.saveSettings(currentWorkflowSettingsDraft, for: activeProjectURL)
+            workflowSettingsOriginal = currentWorkflowSettingsDraft
+            workflowSettingsConfigPath = fileURL.path
+            workflowSettingsStatusMessage = "Saved \(fileURL.lastPathComponent)."
+            workflowSettingsUsingDefaults = false
+            workflowSettingsHasUnsavedChanges = false
+            log("Saved workflow settings: \(fileURL.lastPathComponent)")
+        } catch {
+            log("Workflow settings save failed: \(error.localizedDescription)")
+        }
+    }
+
+    func revertWorkflowSettings() {
+        guard let activeProjectURL else {
+            log("Workflow settings revert skipped: no project is selected.")
+            return
+        }
+
+        loadWorkflowSettings(for: activeProjectURL, template: activeProjectTemplate)
+        log("Reverted workflow settings from disk.")
+    }
+
     func saveCurrentAsPreset() {
         let trimmedName = presetNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -705,7 +799,11 @@ final class AppViewModel: ObservableObject {
             return
         }
 
-        let prompt = codexPromptPackService.starterPrompt(for: lastCreatedProjectURL, template: lastCreatedTemplate)
+        let prompt = codexPromptPackService.starterPrompt(
+            for: lastCreatedProjectURL,
+            template: lastCreatedTemplate,
+            workflowSettings: workflowSettingsForProject(lastCreatedProjectURL, template: lastCreatedTemplate)
+        )
 
         switch postCreateActionService.copyPrompt(prompt.body, title: prompt.title) {
         case let .success(message):
@@ -919,7 +1017,13 @@ final class AppViewModel: ObservableObject {
     }
 
     private func performCodexHandoff(projectURL: URL, template: ProjectTemplate) {
-        switch codexHandoffService.openInCodex(projectURL: projectURL, template: template) {
+        let workflowSettings = workflowSettingsForProject(projectURL, template: template)
+
+        switch codexHandoffService.openInCodex(
+            projectURL: projectURL,
+            template: template,
+            workflowSettings: workflowSettings
+        ) {
         case let .success(outcome):
             for message in outcome.messages {
                 log(message)
@@ -970,9 +1074,11 @@ final class AppViewModel: ObservableObject {
 
         let inspectedSummary = projectInspectorService.inspectProject(at: activeProjectURL)
         let template = activeProjectTemplate ?? inspectedSummary.detectedTemplate
+        let workflowSettings = workflowSettingsForProject(activeProjectURL, template: template)
         let starterPrompt = codexPromptPackService.starterPrompt(
             for: activeProjectURL,
-            template: template ?? .blank
+            template: template ?? .blank,
+            workflowSettings: workflowSettings
         ).body
 
         let workflowFiles = [
@@ -991,6 +1097,7 @@ final class AppViewModel: ObservableObject {
             fileTreeText: inspectedSummary.fileTreeText,
             auditSummaryText: relevantAuditSummaryText(for: activeProjectURL),
             assetImportSummaryText: relevantAssetImportSummaryText(for: activeProjectURL),
+            workflowSettingsSummaryText: workflowSettingsSummaryText(for: activeProjectURL, template: template),
             starterPrompt: starterPrompt,
             nextSteps: handoffNextSteps(for: inspectedSummary, template: template)
         )
@@ -1085,5 +1192,61 @@ final class AppViewModel: ObservableObject {
         }
 
         return recentProjects.first(where: { $0.path == explicitWorkflowSelectionURL.path })
+    }
+
+    private var currentWorkflowSettingsDraft: ProjectWorkflowSettings {
+        ProjectWorkflowSettings(
+            validationTarget: workflowSettingsValidationTarget,
+            godotPathOverride: workflowSettingsGodotPathOverride,
+            handoffNote: workflowSettingsHandoffNote,
+            projectNote: workflowSettingsProjectNote
+        )
+    }
+
+    private func updateWorkflowSettingsDirtyStateIfNeeded() {
+        guard !isUpdatingWorkflowSettingsDraft else {
+            return
+        }
+
+        workflowSettingsHasUnsavedChanges = currentWorkflowSettingsDraft != workflowSettingsOriginal
+    }
+
+    private func loadWorkflowSettings(for projectURL: URL, template: ProjectTemplate?) {
+        let document = workflowSettingsService.loadSettings(for: projectURL, template: template)
+        workflowSettingsLoadedProjectURL = projectURL
+        workflowSettingsOriginal = document.settings
+        workflowSettingsConfigPath = document.fileURL.path
+        workflowSettingsStatusMessage = document.statusMessage
+        workflowSettingsUsingDefaults = document.usedDefaults
+        applyWorkflowSettingsDraft(document.settings)
+    }
+
+    private func applyWorkflowSettingsDraft(_ settings: ProjectWorkflowSettings) {
+        isUpdatingWorkflowSettingsDraft = true
+        workflowSettingsValidationTarget = settings.validationTarget
+        workflowSettingsGodotPathOverride = settings.godotPathOverride
+        workflowSettingsHandoffNote = settings.handoffNote
+        workflowSettingsProjectNote = settings.projectNote
+        workflowSettingsHasUnsavedChanges = false
+        isUpdatingWorkflowSettingsDraft = false
+    }
+
+    private func workflowSettingsForProject(_ projectURL: URL, template: ProjectTemplate?) -> ProjectWorkflowSettings {
+        if workflowSettingsLoadedProjectURL?.path == projectURL.path {
+            return currentWorkflowSettingsDraft
+        }
+
+        return workflowSettingsService.loadSettings(for: projectURL, template: template).settings
+    }
+
+    private func workflowSettingsSummaryText(for projectURL: URL, template: ProjectTemplate?) -> String? {
+        let settings = workflowSettingsForProject(projectURL, template: template)
+        let defaults = ProjectWorkflowSettings.defaults(for: template)
+        let lines = settings.summaryLines(defaults: defaults)
+        guard !lines.isEmpty else {
+            return nil
+        }
+
+        return lines.joined(separator: "\n")
     }
 }

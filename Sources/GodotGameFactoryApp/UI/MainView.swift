@@ -29,6 +29,7 @@ struct MainView: View {
                     HandoffBundleView(viewModel: viewModel)
                     ProjectSummaryView(viewModel: viewModel)
                     WorkflowFilesView(viewModel: viewModel)
+                    WorkflowSettingsView(viewModel: viewModel)
                     PromptPackView(viewModel: viewModel)
                     PostCreateActionsView(viewModel: viewModel)
                     CodexHandoffStatusView(viewModel: viewModel)
@@ -532,6 +533,72 @@ private struct ProjectSummaryView: View {
         }
     }
 
+}
+
+private struct WorkflowSettingsView: View {
+    @ObservedObject var viewModel: AppViewModel
+
+    var body: some View {
+        GroupBox("Workflow Settings") {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Edit small project-local workflow settings for the active project. Save writes `gamefactory.workflow.json`; Revert reloads from disk.")
+                    .foregroundStyle(.secondary)
+
+                if let activeProjectURL = viewModel.activeProjectURL {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Active Project")
+                            .fontWeight(.medium)
+                        Text(viewModel.activeProjectName)
+                        Text(activeProjectURL.path)
+                            .textSelection(.enabled)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Config File")
+                            .fontWeight(.medium)
+                        Text(viewModel.workflowSettingsConfigPath)
+                            .textSelection(.enabled)
+                            .foregroundStyle(.secondary)
+                        Text(viewModel.workflowSettingsStatusMessage)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    TextField("Validation Target Scene/Path", text: $viewModel.workflowSettingsValidationTarget)
+                    TextField("Godot Path Override (Optional)", text: $viewModel.workflowSettingsGodotPathOverride)
+                    TextField("Prompt Style / Handoff Note (Optional)", text: $viewModel.workflowSettingsHandoffNote)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Project Note (Optional)")
+                            .fontWeight(.medium)
+                        TextEditor(text: $viewModel.workflowSettingsProjectNote)
+                            .font(.system(.body, design: .monospaced))
+                            .frame(minHeight: 100)
+                    }
+
+                    HStack {
+                        Button("Save") {
+                            viewModel.saveWorkflowSettings()
+                        }
+                        .disabled(!viewModel.canSaveWorkflowSettings)
+
+                        Button("Revert") {
+                            viewModel.revertWorkflowSettings()
+                        }
+                        .disabled(!viewModel.canRevertWorkflowSettings)
+
+                        if viewModel.workflowSettingsHasUnsavedChanges {
+                            Text("Unsaved changes")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } else {
+                    EmptyStateText("No active project yet. Create, inspect, or select a project before editing per-project workflow settings.")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
 }
 
 private struct WorkflowFilesView: View {

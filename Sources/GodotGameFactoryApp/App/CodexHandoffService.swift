@@ -28,8 +28,16 @@ struct CodexHandoffService {
         self.openTerminalAction = openTerminalAction
     }
 
-    func plan(for projectURL: URL, template: ProjectTemplate) -> CodexHandoffPlan {
-        let starterPrompt = promptPackService.starterPrompt(for: projectURL, template: template)
+    func plan(
+        for projectURL: URL,
+        template: ProjectTemplate,
+        workflowSettings: ProjectWorkflowSettings? = nil
+    ) -> CodexHandoffPlan {
+        let starterPrompt = promptPackService.starterPrompt(
+            for: projectURL,
+            template: template,
+            workflowSettings: workflowSettings
+        )
 
         return CodexHandoffPlan(
             projectURL: projectURL,
@@ -41,8 +49,12 @@ struct CodexHandoffService {
         )
     }
 
-    func openInCodex(projectURL: URL, template: ProjectTemplate) -> Result<CodexHandoffOutcome, Error> {
-        let handoffPlan = plan(for: projectURL, template: template)
+    func openInCodex(
+        projectURL: URL,
+        template: ProjectTemplate,
+        workflowSettings: ProjectWorkflowSettings? = nil
+    ) -> Result<CodexHandoffOutcome, Error> {
+        let handoffPlan = plan(for: projectURL, template: template, workflowSettings: workflowSettings)
 
         switch copyPromptAction(handoffPlan.prompt.body, handoffPlan.prompt.title) {
         case let .failure(error):

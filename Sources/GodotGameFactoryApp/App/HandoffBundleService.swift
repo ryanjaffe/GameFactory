@@ -30,6 +30,14 @@ struct HandoffBundleService {
         No recent asset import is available for this project.
         """
 
+        let workflowSettingsSection = input.workflowSettingsSummaryText.map {
+            """
+            ## Workflow Settings
+
+            \($0)
+            """
+        } ?? ""
+
         let nextSteps = input.nextSteps.map { "- \($0)" }.joined(separator: "\n")
 
         return """
@@ -54,6 +62,8 @@ struct HandoffBundleService {
 
         \(assetSection)
 
+        \(workflowSettingsSection)
+
         ## Starter Prompt
 
         \(input.starterPrompt)
@@ -75,6 +85,7 @@ struct HandoffBundleInput {
     let fileTreeText: String
     let auditSummaryText: String?
     let assetImportSummaryText: String?
+    let workflowSettingsSummaryText: String?
     let starterPrompt: String
     let nextSteps: [String]
 }
