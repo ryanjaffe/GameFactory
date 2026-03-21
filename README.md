@@ -124,6 +124,29 @@ The app is expected to handle missing tools gracefully.
 - GitHub setup depends on `gh` being installed and authenticated.
 - Open in Codex is a composed handoff flow, not a direct Codex launcher integration.
 
+## V3 Directions
+
+V3 should focus on making Game Factory useful after project creation, not just during setup.
+
+Priority areas:
+1. Editable workflow files
+- built-in editor for `AGENTS.md`, `README.md`, and `run_validation.sh`
+- regenerate and restore workflow files safely
+
+2. Project lifecycle tools
+- inspect existing projects
+- audit project health
+- edit per-project workflow settings
+
+3. Asset readiness
+- import starter assets
+- optional asset starter packs
+- asset-aware prompt generation
+
+4. Tool handoff
+- Open in Godot
+- export/share project handoff bundle
+
 ## Testing
 
 See [TESTING.md](/Users/ryan/Documents/CODEX/GameFactory/TESTING.md) for a manual smoke-test checklist.

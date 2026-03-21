@@ -27,6 +27,13 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var recentProjects: [RecentProject]
     @Published private(set) var codexHandoffMessage: String?
     @Published private(set) var presets: [ProjectPreset]
+    @Published private(set) var selectedWorkflowProjectURL: URL?
+    @Published private(set) var selectedWorkflowProjectName: String?
+    @Published private(set) var selectedWorkflowFile: WorkflowFileKind?
+    @Published private(set) var workflowEditorText = ""
+    @Published private(set) var workflowEditorFilePath = ""
+    @Published private(set) var workflowFileNotFound = false
+    @Published private(set) var workflowFileHasUnsavedChanges = false
 
     private let logger: AppLogger
     private let settingsStore: AppSettingsStore
@@ -39,9 +46,11 @@ final class AppViewModel: ObservableObject {
     private let codexPromptPackService: CodexPromptPackService
     private let codexHandoffService: CodexHandoffService
     private let folderPickerService: FolderPickerService
+    private let workflowFileService: WorkflowFileService
     private var hasFinishedInitializing = false
     private var hasLoggedSaveFailure = false
     private var hasSavedSettings = false
+    private var workflowEditorOriginalText = ""
 
     var hasLastCreatedProject: Bool {
         lastCreatedProjectURL != nil
@@ -66,6 +75,46 @@ final class AppViewModel: ObservableObject {
 
     var hasRecentProjects: Bool {
         !recentProjects.isEmpty
+    }
+
+    var workflowFileTargetProjectURL: URL? {
+        selectedWorkflowProjectURL ?? lastCreatedProjectURL
+    }
+
+    var workflowFileTargetProjectName: String {
+        if let selectedWorkflowProjectName {
+            return selectedWorkflowProjectName
+        }
+
+        if let lastCreatedSummary {
+            return lastCreatedSummary.projectName
+        }
+
+        return workflowFileTargetProjectURL?.lastPathComponent ?? "No project selected"
+    }
+
+    var workflowFileTargetProjectPath: String {
+        workflowFileTargetProjectURL?.path ?? "No project selected yet."
+    }
+
+    var hasWorkflowFileTarget: Bool {
+        workflowFileTargetProjectURL != nil
+    }
+
+    var canEditWorkflowFile: Bool {
+        hasWorkflowFileTarget && selectedWorkflowFile != nil && !workflowFileNotFound
+    }
+
+    var canSaveWorkflowFile: Bool {
+        canEditWorkflowFile && workflowFileHasUnsavedChanges
+    }
+
+    var canRevertWorkflowFile: Bool {
+        hasWorkflowFileTarget && selectedWorkflowFile != nil
+    }
+
+    var hasOpenedWorkflowFile: Bool {
+        selectedWorkflowFile != nil
     }
 
     var lastCreatedProjectPath: String {
@@ -115,7 +164,8 @@ final class AppViewModel: ObservableObject {
         postCreateActionService: PostCreateActionService = PostCreateActionService(),
         codexPromptPackService: CodexPromptPackService = CodexPromptPackService(),
         codexHandoffService: CodexHandoffService = CodexHandoffService(),
-        folderPickerService: FolderPickerService = FolderPickerService()
+        folderPickerService: FolderPickerService = FolderPickerService(),
+        workflowFileService: WorkflowFileService = WorkflowFileService()
     ) {
         self.settingsStore = settingsStore
         self.presetStore = presetStore
@@ -128,6 +178,7 @@ final class AppViewModel: ObservableObject {
         self.codexPromptPackService = codexPromptPackService
         self.codexHandoffService = codexHandoffService
         self.folderPickerService = folderPickerService
+        self.workflowFileService = workflowFileService
         self.settings = settingsStore.load()
         self.presets = presetStore.load()
         self.recentProjects = recentProjectsStore.load()
@@ -181,6 +232,9 @@ final class AppViewModel: ObservableObject {
             let result = try generator.generateProject(using: settings)
             lastCreatedProjectURL = result.finalProjectURL
             lastCreatedTemplate = settings.template
+            selectedWorkflowProjectURL = result.finalProjectURL
+            selectedWorkflowProjectName = trimmedName
+            clearWorkflowEditor()
             for message in result.messages {
                 log(message)
             }
@@ -304,6 +358,94 @@ final class AppViewModel: ObservableObject {
         }
 
         settings.baseDirectory = selectedFolderURL.path
+    }
+
+    func selectRecentProjectForWorkflowFiles(_ project: RecentProject) {
+        guard !workflowFileHasUnsavedChanges else {
+            log("Workflow file selection blocked: save or revert current changes first.")
+            return
+        }
+
+        selectedWorkflowProjectURL = project.projectURL
+        selectedWorkflowProjectName = project.projectName
+        clearWorkflowEditor()
+        log("Workflow file target set to \(project.projectName).")
+    }
+
+    func openWorkflowFile(_ kind: WorkflowFileKind) {
+        guard let projectURL = workflowFileTargetProjectURL else {
+            log("Workflow file action skipped: no project is selected.")
+            return
+        }
+
+        guard !workflowFileHasUnsavedChanges || selectedWorkflowFile == kind else {
+            log("Workflow file switch blocked: save or revert current changes first.")
+            return
+        }
+
+        let loadResult = workflowFileService.loadFile(kind, projectURL: projectURL)
+        selectedWorkflowFile = kind
+        workflowEditorFilePath = loadResult.fileURL.path
+
+        if loadResult.isMissing {
+            workflowEditorText = ""
+            workflowEditorOriginalText = ""
+            workflowFileNotFound = true
+            workflowFileHasUnsavedChanges = false
+            log("Workflow file not found: \(kind.fileName)")
+            return
+        }
+
+        guard let contents = loadResult.contents else {
+            workflowEditorText = ""
+            workflowEditorOriginalText = ""
+            workflowFileNotFound = false
+            workflowFileHasUnsavedChanges = false
+            log("Workflow file open failed: could not read \(kind.fileName).")
+            return
+        }
+
+        workflowEditorText = contents
+        workflowEditorOriginalText = contents
+        workflowFileNotFound = false
+        workflowFileHasUnsavedChanges = false
+        log("Opened workflow file: \(kind.fileName)")
+    }
+
+    func updateWorkflowEditorText(_ text: String) {
+        workflowEditorText = text
+        workflowFileHasUnsavedChanges = text != workflowEditorOriginalText
+    }
+
+    func saveWorkflowFile() {
+        guard let projectURL = workflowFileTargetProjectURL, let selectedWorkflowFile else {
+            log("Workflow file save skipped: no file is open.")
+            return
+        }
+
+        guard !workflowFileNotFound else {
+            log("Workflow file save skipped: file not found.")
+            return
+        }
+
+        do {
+            let fileURL = try workflowFileService.saveFile(workflowEditorText, kind: selectedWorkflowFile, projectURL: projectURL)
+            workflowEditorOriginalText = workflowEditorText
+            workflowFileHasUnsavedChanges = false
+            workflowEditorFilePath = fileURL.path
+            log("Saved workflow file: \(selectedWorkflowFile.fileName)")
+        } catch {
+            log("Workflow file save failed: \(error.localizedDescription)")
+        }
+    }
+
+    func revertWorkflowFile() {
+        guard let selectedWorkflowFile else {
+            log("Workflow file revert skipped: no file is open.")
+            return
+        }
+
+        openWorkflowFile(selectedWorkflowFile)
     }
 
     func saveCurrentAsPreset() {
@@ -561,5 +703,14 @@ final class AppViewModel: ObservableObject {
 
         let updatedProjects = recentProjectsStore.record(recentProject)
         recentProjects = updatedProjects
+    }
+
+    private func clearWorkflowEditor() {
+        selectedWorkflowFile = nil
+        workflowEditorText = ""
+        workflowEditorOriginalText = ""
+        workflowEditorFilePath = ""
+        workflowFileNotFound = false
+        workflowFileHasUnsavedChanges = false
     }
 }

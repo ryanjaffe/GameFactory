@@ -24,6 +24,7 @@ struct MainView: View {
                     PresetsView(viewModel: viewModel)
                     NewProjectFormView(viewModel: viewModel)
                     ProjectSummaryView(viewModel: viewModel)
+                    WorkflowFilesView(viewModel: viewModel)
                     PromptPackView(viewModel: viewModel)
                     PostCreateActionsView(viewModel: viewModel)
                     CodexHandoffStatusView(viewModel: viewModel)
@@ -130,6 +131,10 @@ private struct RecentProjectsView: View {
                             Text("GitHub: \(project.gitHubStatus.displayText)")
 
                             HStack {
+                                Button("Use for Workflow Files") {
+                                    viewModel.selectRecentProjectForWorkflowFiles(project)
+                                }
+
                                 Button("Open in Codex") {
                                     viewModel.openRecentProjectInCodex(project)
                                 }
@@ -282,6 +287,84 @@ private struct ProjectSummaryView: View {
         }
     }
 
+}
+
+private struct WorkflowFilesView: View {
+    @ObservedObject var viewModel: AppViewModel
+
+    var body: some View {
+        GroupBox("Workflow Files") {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Inspect and edit the key generated workflow files for the last created project or a selected recent project.")
+                    .foregroundStyle(.secondary)
+
+                if viewModel.hasWorkflowFileTarget {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Current Project")
+                            .fontWeight(.medium)
+                        Text(viewModel.workflowFileTargetProjectName)
+                        Text(viewModel.workflowFileTargetProjectPath)
+                            .textSelection(.enabled)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    HStack {
+                        ForEach(WorkflowFileKind.allCases) { file in
+                            Button("Open \(file.fileName)") {
+                                viewModel.openWorkflowFile(file)
+                            }
+                        }
+                    }
+
+                    if let selectedWorkflowFile = viewModel.selectedWorkflowFile {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(selectedWorkflowFile.fileName)
+                                .fontWeight(.medium)
+                            Text(viewModel.workflowEditorFilePath.isEmpty ? "No file selected." : viewModel.workflowEditorFilePath)
+                                .textSelection(.enabled)
+                                .foregroundStyle(.secondary)
+
+                            if viewModel.workflowFileNotFound {
+                                EmptyStateText("File not found. The file is missing on disk, so editing is disabled until it exists again.")
+                            } else {
+                                TextEditor(
+                                    text: Binding(
+                                        get: { viewModel.workflowEditorText },
+                                        set: { viewModel.updateWorkflowEditorText($0) }
+                                    )
+                                )
+                                .font(.system(.body, design: .monospaced))
+                                .frame(minHeight: 220)
+                                .disabled(!viewModel.canEditWorkflowFile)
+                            }
+
+                            HStack {
+                                Button("Save") {
+                                    viewModel.saveWorkflowFile()
+                                }
+                                .disabled(!viewModel.canSaveWorkflowFile)
+
+                                Button("Revert") {
+                                    viewModel.revertWorkflowFile()
+                                }
+                                .disabled(!viewModel.canRevertWorkflowFile)
+
+                                if viewModel.workflowFileHasUnsavedChanges {
+                                    Text("Unsaved changes")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    } else {
+                        EmptyStateText("Open AGENTS.md, README.md, or run_validation.sh to inspect and edit it here.")
+                    }
+                } else {
+                    EmptyStateText("No workflow files yet. Create a real project or choose one from Recent Projects to edit AGENTS.md, README.md, and run_validation.sh.")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
 }
 
 private struct PostCreateActionsView: View {
