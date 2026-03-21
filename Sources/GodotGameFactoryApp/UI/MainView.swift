@@ -24,6 +24,7 @@ struct MainView: View {
                     PresetsView(viewModel: viewModel)
                     NewProjectFormView(viewModel: viewModel)
                     ProjectInspectorView(viewModel: viewModel)
+                    ProjectAuditView(viewModel: viewModel)
                     ProjectSummaryView(viewModel: viewModel)
                     WorkflowFilesView(viewModel: viewModel)
                     PromptPackView(viewModel: viewModel)
@@ -132,6 +133,74 @@ private struct ProjectInspectorView: View {
 
     private func yesNo(_ value: Bool) -> String {
         value ? "Yes" : "No"
+    }
+}
+
+private struct ProjectAuditView: View {
+    @ObservedObject var viewModel: AppViewModel
+
+    var body: some View {
+        GroupBox("Project Audit") {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Run a lightweight health check for the current active project context.")
+                    .foregroundStyle(.secondary)
+
+                Button("Run Audit") {
+                    viewModel.runProjectAudit()
+                }
+                .disabled(viewModel.activeProjectURL == nil)
+
+                if let activeProjectURL = viewModel.activeProjectURL {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Active Project")
+                            .fontWeight(.medium)
+                        Text(viewModel.activeProjectName)
+                        Text(activeProjectURL.path)
+                            .textSelection(.enabled)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let audit = viewModel.lastProjectAudit {
+                    Text(audit.summaryText)
+                        .textSelection(.enabled)
+                        .foregroundStyle(.secondary)
+
+                    ForEach(audit.checks) { check in
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: check.status.systemImageName)
+                                .foregroundStyle(statusColor(for: check.status))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(check.title)
+                                    .fontWeight(.medium)
+                                Text(check.status.rawValue)
+                                    .foregroundStyle(.secondary)
+                                Text(check.detail)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                } else if viewModel.activeProjectURL == nil {
+                    EmptyStateText("No active project yet. Use the current project, inspect an existing one, or select a recent project before running an audit.")
+                } else {
+                    EmptyStateText("No audit run yet. Run the audit to check whether the active project still looks healthy and Codex-ready.")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func statusColor(for status: ProjectAuditStatus) -> Color {
+        switch status {
+        case .pass:
+            return .green
+        case .warn:
+            return .orange
+        case .fail:
+            return .red
+        case .skipped:
+            return .secondary
+        }
     }
 }
 

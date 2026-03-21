@@ -28,8 +28,10 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var codexHandoffMessage: String?
     @Published private(set) var presets: [ProjectPreset]
     @Published private(set) var inspectedProjectSummary: InspectedProjectSummary?
+    @Published private(set) var lastProjectAudit: ProjectAuditSummary?
     @Published private(set) var selectedWorkflowProjectURL: URL?
     @Published private(set) var selectedWorkflowProjectName: String?
+    @Published private(set) var selectedWorkflowProjectTemplate: ProjectTemplate?
     @Published private(set) var selectedWorkflowFile: WorkflowFileKind?
     @Published private(set) var workflowEditorText = ""
     @Published private(set) var workflowEditorFilePath = ""
@@ -51,6 +53,7 @@ final class AppViewModel: ObservableObject {
     private let godotPathPickerService: GodotPathPickerService
     private let godotLaunchService: GodotLaunchService
     private let projectInspectorService: ProjectInspectorService
+    private let projectAuditService: ProjectAuditService
     private let workflowFileService: WorkflowFileService
     private var hasFinishedInitializing = false
     private var hasLoggedSaveFailure = false
@@ -86,6 +89,10 @@ final class AppViewModel: ObservableObject {
         inspectedProjectSummary != nil
     }
 
+    var hasProjectAudit: Bool {
+        lastProjectAudit != nil
+    }
+
     var workflowFileTargetProjectURL: URL? {
         selectedWorkflowProjectURL ?? lastCreatedProjectURL
     }
@@ -104,6 +111,34 @@ final class AppViewModel: ObservableObject {
 
     var workflowFileTargetProjectPath: String {
         workflowFileTargetProjectURL?.path ?? "No project selected yet."
+    }
+
+    var activeProjectURL: URL? {
+        explicitWorkflowSelectionURL ?? inspectedProjectSummary?.projectURL ?? lastCreatedProjectURL
+    }
+
+    var activeProjectName: String {
+        if explicitWorkflowSelectionURL != nil, let selectedWorkflowProjectName {
+            return selectedWorkflowProjectName
+        }
+
+        if let inspectedProjectSummary {
+            return inspectedProjectSummary.projectName
+        }
+
+        return lastCreatedSummary?.projectName ?? lastCreatedProjectURL?.lastPathComponent ?? "No project selected"
+    }
+
+    var activeProjectPath: String {
+        activeProjectURL?.path ?? "No project selected yet."
+    }
+
+    var activeProjectTemplate: ProjectTemplate? {
+        if explicitWorkflowSelectionURL != nil {
+            return selectedWorkflowProjectTemplate
+        }
+
+        return inspectedProjectSummary?.detectedTemplate ?? lastCreatedTemplate
     }
 
     var hasWorkflowFileTarget: Bool {
@@ -178,6 +213,7 @@ final class AppViewModel: ObservableObject {
         godotPathPickerService: GodotPathPickerService = GodotPathPickerService(),
         godotLaunchService: GodotLaunchService = GodotLaunchService(),
         projectInspectorService: ProjectInspectorService = ProjectInspectorService(),
+        projectAuditService: ProjectAuditService = ProjectAuditService(),
         workflowFileService: WorkflowFileService = WorkflowFileService()
     ) {
         self.settingsStore = settingsStore
@@ -195,6 +231,7 @@ final class AppViewModel: ObservableObject {
         self.godotPathPickerService = godotPathPickerService
         self.godotLaunchService = godotLaunchService
         self.projectInspectorService = projectInspectorService
+        self.projectAuditService = projectAuditService
         self.workflowFileService = workflowFileService
         self.settings = settingsStore.load()
         self.presets = presetStore.load()
@@ -251,7 +288,9 @@ final class AppViewModel: ObservableObject {
             lastCreatedTemplate = settings.template
             selectedWorkflowProjectURL = result.finalProjectURL
             selectedWorkflowProjectName = trimmedName
+            selectedWorkflowProjectTemplate = settings.template
             clearWorkflowEditor()
+            clearProjectAudit()
             for message in result.messages {
                 log(message)
             }
@@ -384,6 +423,7 @@ final class AppViewModel: ObservableObject {
 
         let summary = projectInspectorService.inspectProject(at: selectedProjectURL)
         inspectedProjectSummary = summary
+        clearProjectAudit()
 
         if summary.isValidProject {
             log("Inspected existing project: \(summary.projectURL.path)")
@@ -408,7 +448,9 @@ final class AppViewModel: ObservableObject {
 
         selectedWorkflowProjectURL = project.projectURL
         selectedWorkflowProjectName = project.projectName
+        selectedWorkflowProjectTemplate = project.template
         clearWorkflowEditor()
+        clearProjectAudit()
         log("Workflow file target set to \(project.projectName).")
     }
 
@@ -425,7 +467,9 @@ final class AppViewModel: ObservableObject {
 
         selectedWorkflowProjectURL = inspectedProjectSummary.projectURL
         selectedWorkflowProjectName = inspectedProjectSummary.projectName
+        selectedWorkflowProjectTemplate = inspectedProjectSummary.detectedTemplate
         clearWorkflowEditor()
+        clearProjectAudit()
         log("Workflow file target set to inspected project \(inspectedProjectSummary.projectName).")
     }
 
@@ -494,6 +538,17 @@ final class AppViewModel: ObservableObject {
         } catch {
             log("Workflow file save failed: \(error.localizedDescription)")
         }
+    }
+
+    func runProjectAudit() {
+        guard let activeProjectURL else {
+            log("Project audit skipped: no project is selected.")
+            return
+        }
+
+        let audit = projectAuditService.runAudit(projectURL: activeProjectURL, template: activeProjectTemplate)
+        lastProjectAudit = audit
+        log("Project audit complete for \(audit.projectName).")
     }
 
     func revertWorkflowFile() {
@@ -836,5 +891,21 @@ final class AppViewModel: ObservableObject {
         workflowEditorFilePath = ""
         workflowFileNotFound = false
         workflowFileHasUnsavedChanges = false
+    }
+
+    private func clearProjectAudit() {
+        lastProjectAudit = nil
+    }
+
+    private var explicitWorkflowSelectionURL: URL? {
+        guard let selectedWorkflowProjectURL else {
+            return nil
+        }
+
+        guard selectedWorkflowProjectURL != lastCreatedProjectURL else {
+            return nil
+        }
+
+        return selectedWorkflowProjectURL
     }
 }
