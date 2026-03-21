@@ -10,50 +10,112 @@ struct ProjectCreationSummary {
     let createdFiles: [URL]
 
     var workflowFiles: [String] {
-        createdFiles
-            .map { $0.lastPathComponent }
+        relativePaths()
             .filter { ["AGENTS.md", "run_validation.sh"].contains($0) }
             .sorted()
     }
 
+    var templateStarterFiles: [String] {
+        relativePaths()
+            .filter {
+                $0.hasPrefix("scenes/") || $0.hasPrefix("scripts/") || $0.hasPrefix("tests/")
+            }
+            .filter { !workflowFiles.contains($0) }
+            .sorted()
+    }
+
     var summaryText: String {
-        let workflowList = workflowFiles.joined(separator: ", ")
+        let workflowList = workflowFiles.map { "- \($0)" }.joined(separator: "\n")
+        let starterList = templateStarterFiles.isEmpty
+            ? "- none"
+            : templateStarterFiles.map { "- \($0)" }.joined(separator: "\n")
+        let nextSteps = nextStepsLines().map { "- \($0)" }.joined(separator: "\n")
 
         return """
+        Project Summary
+
         Project: \(projectName)
         Path: \(finalProjectURL.path)
         Template: \(template.rawValue)
         Git: \(gitStatus.displayText)
         GitHub: \(gitHubStatus.displayText)
-        Workflow files: \(workflowList)
+
+        Workflow files:
+        \(workflowList)
+
+        Template starter files:
+        \(starterList)
+
+        Next steps:
+        \(nextSteps)
         """
     }
 
     var fileTreeText: String {
         let rootFiles = relativeRootFiles()
-        let sections = ["scenes", "scripts", "tests", "artifacts"]
+        let keyDirectories = ["scenes", "scripts", "tests", "artifacts"]
 
         var lines = [finalProjectURL.lastPathComponent + "/"]
-        lines.append(contentsOf: rootFiles.map { "\($0)" })
 
-        for section in sections {
-            lines.append("\(section)/")
+        for file in rootFiles {
+            lines.append("├── \(file)")
+        }
 
-            let nested = relativeNestedFiles(in: section)
-            if nested.isEmpty {
-                lines.append("  (empty)")
-            } else {
-                lines.append(contentsOf: nested.map { "  \($0)" })
+        for (index, directory) in keyDirectories.enumerated() {
+            let isLastDirectory = index == keyDirectories.count - 1
+            let branch = isLastDirectory ? "└──" : "├──"
+            lines.append("\(branch) \(directory)/")
+
+            let nestedFiles = relativeNestedFiles(in: directory)
+            if nestedFiles.isEmpty {
+                lines.append("\(isLastDirectory ? "    " : "│   ")└── (empty)")
+                continue
+            }
+
+            for (nestedIndex, nestedFile) in nestedFiles.enumerated() {
+                let nestedBranch = nestedIndex == nestedFiles.count - 1 ? "└──" : "├──"
+                let nestedPrefix = isLastDirectory ? "    " : "│   "
+                lines.append("\(nestedPrefix)\(nestedBranch) \(nestedFile)")
             }
         }
 
         return lines.joined(separator: "\n")
     }
 
-    private func relativeRootFiles() -> [String] {
+    private func nextStepsLines() -> [String] {
+        var steps = [
+            "Review `AGENTS.md` before making changes.",
+            "Run `./run_validation.sh` after your first edit.",
+        ]
+
+        switch gitStatus {
+        case .succeeded:
+            steps.append("Local Git is ready for the next commit.")
+        case let .skipped(reason), let .failed(reason):
+            steps.append("Resolve local Git status: \(reason).")
+        }
+
+        switch gitHubStatus {
+        case .succeeded:
+            steps.append("GitHub remote is ready for push and follow-up work.")
+        case let .skipped(reason):
+            steps.append("GitHub setup is optional. Current status: \(reason).")
+        case let .failed(reason):
+            steps.append("Review GitHub setup before sharing the project: \(reason).")
+        }
+
+        return steps
+    }
+
+    private func relativePaths() -> [String] {
         createdFiles
-            .filter { $0.deletingLastPathComponent().path == finalProjectURL.path }
-            .map(\.lastPathComponent)
+            .map { $0.path.replacingOccurrences(of: finalProjectURL.path + "/", with: "") }
+            .sorted()
+    }
+
+    private func relativeRootFiles() -> [String] {
+        relativePaths()
+            .filter { !$0.contains("/") }
             .sorted()
     }
 
