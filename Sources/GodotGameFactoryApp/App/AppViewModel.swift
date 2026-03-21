@@ -30,6 +30,7 @@ final class AppViewModel: ObservableObject {
     private let gitHubService: GitHubService
     private let postCreateActionService: PostCreateActionService
     private let codexPromptPackService: CodexPromptPackService
+    private let folderPickerService: FolderPickerService
     private var hasFinishedInitializing = false
     private var hasLoggedSaveFailure = false
     private var hasSavedSettings = false
@@ -81,7 +82,8 @@ final class AppViewModel: ObservableObject {
         gitService: GitService = GitService(),
         gitHubService: GitHubService = GitHubService(),
         postCreateActionService: PostCreateActionService = PostCreateActionService(),
-        codexPromptPackService: CodexPromptPackService = CodexPromptPackService()
+        codexPromptPackService: CodexPromptPackService = CodexPromptPackService(),
+        folderPickerService: FolderPickerService = FolderPickerService()
     ) {
         self.settingsStore = settingsStore
         self.logger = logger
@@ -90,6 +92,7 @@ final class AppViewModel: ObservableObject {
         self.gitHubService = gitHubService
         self.postCreateActionService = postCreateActionService
         self.codexPromptPackService = codexPromptPackService
+        self.folderPickerService = folderPickerService
         self.settings = settingsStore.load()
         self.logEntries = logger.entries
 
@@ -243,6 +246,14 @@ final class AppViewModel: ObservableObject {
         } catch {
             log("Preview failed: \(error.localizedDescription)")
         }
+    }
+
+    func chooseBaseDirectory() {
+        guard let selectedFolderURL = folderPickerService.chooseFolder() else {
+            return
+        }
+
+        settings.baseDirectory = selectedFolderURL.path
     }
 
     private func log(_ message: String) {

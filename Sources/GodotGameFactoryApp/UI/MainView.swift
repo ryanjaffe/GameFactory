@@ -200,7 +200,13 @@ private struct NewProjectFormView: View {
             VStack(alignment: .leading, spacing: 14) {
                 TextField("Project Name", text: $viewModel.settings.projectName)
 
-                TextField("Base Directory", text: $viewModel.settings.baseDirectory)
+                HStack(alignment: .center, spacing: 12) {
+                    TextField("Base Directory", text: $viewModel.settings.baseDirectory)
+
+                    Button("Choose Folder") {
+                        viewModel.chooseBaseDirectory()
+                    }
+                }
 
                 TextField("GitHub Username", text: $viewModel.settings.gitHubUsername)
 
