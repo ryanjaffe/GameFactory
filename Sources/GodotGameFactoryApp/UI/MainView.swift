@@ -26,6 +26,7 @@ struct MainView: View {
                     ProjectInspectorView(viewModel: viewModel)
                     ProjectAuditView(viewModel: viewModel)
                     AssetImportView(viewModel: viewModel)
+                    AssetStarterPacksView(viewModel: viewModel)
                     HandoffBundleView(viewModel: viewModel)
                     ProjectSummaryView(viewModel: viewModel)
                     WorkflowFilesView(viewModel: viewModel)
@@ -40,6 +41,45 @@ struct MainView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(24)
             }
+        }
+    }
+}
+
+private struct AssetStarterPacksView: View {
+    @ObservedObject var viewModel: AppViewModel
+
+    var body: some View {
+        GroupBox("Asset Starter Packs") {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Add a few small built-in placeholder assets to the active project without sourcing files externally.")
+                    .foregroundStyle(.secondary)
+
+                if let activeProjectURL = viewModel.activeProjectURL {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Active Project")
+                            .fontWeight(.medium)
+                        Text(viewModel.activeProjectName)
+                        Text(activeProjectURL.path)
+                            .textSelection(.enabled)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    ForEach(viewModel.assetStarterPacks) { pack in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(pack.title)
+                                .fontWeight(.medium)
+                            Text(pack.description)
+                                .foregroundStyle(.secondary)
+                            Button("Apply \(pack.title)") {
+                                viewModel.applyAssetStarterPack(pack)
+                            }
+                        }
+                    }
+                } else {
+                    EmptyStateText("No active project yet. Create, inspect, or select a project before applying an asset starter pack.")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

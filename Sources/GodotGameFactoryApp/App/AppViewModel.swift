@@ -30,6 +30,7 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var inspectedProjectSummary: InspectedProjectSummary?
     @Published private(set) var lastProjectAudit: ProjectAuditSummary?
     @Published private(set) var lastAssetImport: AssetImportSummary?
+    @Published private(set) var assetStarterPacks: [AssetStarterPack]
     @Published private(set) var selectedWorkflowProjectURL: URL?
     @Published private(set) var selectedWorkflowProjectName: String?
     @Published private(set) var selectedWorkflowProjectTemplate: ProjectTemplate?
@@ -74,6 +75,7 @@ final class AppViewModel: ObservableObject {
     private let projectAuditService: ProjectAuditService
     private let assetImportPickerService: AssetImportPickerService
     private let assetImportService: AssetImportService
+    private let assetStarterPackService: AssetStarterPackService
     private let handoffBundleService: HandoffBundleService
     private let workflowFileService: WorkflowFileService
     private let workflowFileRepairService: WorkflowFileRepairService
@@ -121,6 +123,10 @@ final class AppViewModel: ObservableObject {
 
     var hasAssetImportSummary: Bool {
         lastAssetImport != nil
+    }
+
+    var hasAssetStarterPacks: Bool {
+        !assetStarterPacks.isEmpty
     }
 
     var hasHandoffBundleTarget: Bool {
@@ -290,6 +296,7 @@ final class AppViewModel: ObservableObject {
         projectAuditService: ProjectAuditService = ProjectAuditService(),
         assetImportPickerService: AssetImportPickerService = AssetImportPickerService(),
         assetImportService: AssetImportService = AssetImportService(),
+        assetStarterPackService: AssetStarterPackService = AssetStarterPackService(),
         handoffBundleService: HandoffBundleService = HandoffBundleService(),
         workflowFileService: WorkflowFileService = WorkflowFileService(),
         workflowFileRepairService: WorkflowFileRepairService = WorkflowFileRepairService(),
@@ -313,6 +320,7 @@ final class AppViewModel: ObservableObject {
         self.projectAuditService = projectAuditService
         self.assetImportPickerService = assetImportPickerService
         self.assetImportService = assetImportService
+        self.assetStarterPackService = assetStarterPackService
         self.handoffBundleService = handoffBundleService
         self.workflowFileService = workflowFileService
         self.workflowFileRepairService = workflowFileRepairService
@@ -320,6 +328,7 @@ final class AppViewModel: ObservableObject {
         self.settings = settingsStore.load()
         self.presets = presetStore.load()
         self.recentProjects = recentProjectsStore.load()
+        self.assetStarterPacks = assetStarterPackService.availablePacks()
         self.logEntries = logger.entries
         self.selectedPresetName = presets.first?.name ?? ""
 
@@ -682,6 +691,24 @@ final class AppViewModel: ObservableObject {
             }
         } catch {
             log("Asset import failed: \(error.localizedDescription)")
+        }
+    }
+
+    func applyAssetStarterPack(_ pack: AssetStarterPack) {
+        guard let activeProjectURL else {
+            log("Asset starter pack skipped: no project is selected.")
+            return
+        }
+
+        do {
+            let importSummary = try assetImportService.importGeneratedAssets(pack.files, into: activeProjectURL)
+            lastAssetImport = importSummary
+            log("Applied asset starter pack: \(pack.title)")
+            for importedFile in importSummary.importedFiles {
+                log("Imported asset: \(importedFile.destinationURL.lastPathComponent)")
+            }
+        } catch {
+            log("Asset starter pack failed: \(error.localizedDescription)")
         }
     }
 

@@ -26,6 +26,34 @@ struct AssetImportService {
         )
     }
 
+    func importGeneratedAssets(_ files: [GeneratedAssetFile], into projectURL: URL) throws -> AssetImportSummary {
+        let destinationDirectoryURL = projectURL.appendingPathComponent("art", isDirectory: true)
+        try fileManager.createDirectory(at: destinationDirectoryURL, withIntermediateDirectories: true)
+
+        var importedFiles: [ImportedAsset] = []
+
+        for file in files {
+            let requestedDestinationURL = destinationDirectoryURL.appendingPathComponent(file.relativePath)
+            let parentDirectoryURL = requestedDestinationURL.deletingLastPathComponent()
+            try fileManager.createDirectory(at: parentDirectoryURL, withIntermediateDirectories: true)
+
+            let destinationURL = availableDestinationURL(for: requestedDestinationURL, in: parentDirectoryURL)
+            try file.contents.write(to: destinationURL, atomically: true, encoding: .utf8)
+            importedFiles.append(
+                ImportedAsset(
+                    sourceURL: destinationURL,
+                    destinationURL: destinationURL
+                )
+            )
+        }
+
+        return AssetImportSummary(
+            projectURL: projectURL,
+            destinationDirectoryURL: destinationDirectoryURL,
+            importedFiles: importedFiles
+        )
+    }
+
     private func availableDestinationURL(for sourceURL: URL, in directoryURL: URL) -> URL {
         let originalName = sourceURL.deletingPathExtension().lastPathComponent
         let fileExtension = sourceURL.pathExtension
@@ -49,4 +77,9 @@ struct AssetImportService {
             suffix += 1
         }
     }
+}
+
+struct GeneratedAssetFile {
+    let relativePath: String
+    let contents: String
 }
