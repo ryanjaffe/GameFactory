@@ -30,6 +30,73 @@ enum PromptPackMode: String, CaseIterable, Identifiable {
     }
 }
 
+struct PromptPackPresetConfiguration {
+    let mode: PromptPackMode
+    let includeProjectSummary: Bool
+    let includeWorkflowFiles: Bool
+    let includeStarterContext: Bool
+    let includeNotesOrContext: Bool
+}
+
+enum PromptPackPreset: String, CaseIterable, Identifiable {
+    case `default`
+    case planningReview
+    case implementationFocus
+    case minimalContext
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .default:
+            return "Default"
+        case .planningReview:
+            return "Planning Review"
+        case .implementationFocus:
+            return "Implementation Focus"
+        case .minimalContext:
+            return "Minimal Context"
+        }
+    }
+
+    var configuration: PromptPackPresetConfiguration {
+        switch self {
+        case .default:
+            return PromptPackPresetConfiguration(
+                mode: .standard,
+                includeProjectSummary: true,
+                includeWorkflowFiles: true,
+                includeStarterContext: true,
+                includeNotesOrContext: true
+            )
+        case .planningReview:
+            return PromptPackPresetConfiguration(
+                mode: .planning,
+                includeProjectSummary: true,
+                includeWorkflowFiles: true,
+                includeStarterContext: true,
+                includeNotesOrContext: true
+            )
+        case .implementationFocus:
+            return PromptPackPresetConfiguration(
+                mode: .implementation,
+                includeProjectSummary: true,
+                includeWorkflowFiles: true,
+                includeStarterContext: true,
+                includeNotesOrContext: false
+            )
+        case .minimalContext:
+            return PromptPackPresetConfiguration(
+                mode: .standard,
+                includeProjectSummary: true,
+                includeWorkflowFiles: false,
+                includeStarterContext: false,
+                includeNotesOrContext: false
+            )
+        }
+    }
+}
+
 struct UIStatusMessage {
     enum Kind {
         case success
@@ -80,6 +147,7 @@ final class AppViewModel: ObservableObject {
         didSet { clearPromptPreview() }
     }
     @Published var promptPackPreviewText = ""
+    @Published var selectedPromptPreset: PromptPackPreset = .default
     @Published var selectedPromptMode: PromptPackMode = .standard {
         didSet { clearPromptPreview() }
     }
@@ -1298,6 +1366,18 @@ final class AppViewModel: ObservableObject {
         promptPackPreviewText = previewText
         log("Prompt preview generated for \(selectedPromptKind.title) in \(selectedPromptMode.title.lowercased()) mode.")
         promptPackStatus = .success("Prompt preview generated.")
+    }
+
+    func applyPromptPreset(_ preset: PromptPackPreset) {
+        selectedPromptPreset = preset
+
+        let configuration = preset.configuration
+        selectedPromptMode = configuration.mode
+        includeProjectSummary = configuration.includeProjectSummary
+        includeWorkflowFiles = configuration.includeWorkflowFiles
+        includeStarterContext = configuration.includeStarterContext
+        includeNotesOrContext = configuration.includeNotesOrContext
+        clearPromptPreview()
     }
 
     func copyLastCreatedSummary() {

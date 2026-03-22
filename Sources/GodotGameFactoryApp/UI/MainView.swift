@@ -562,6 +562,18 @@ private struct PromptPackView: View {
                         }
                     }
 
+                    Picker(
+                        "Preset",
+                        selection: Binding(
+                            get: { viewModel.selectedPromptPreset },
+                            set: { viewModel.applyPromptPreset($0) }
+                        )
+                    ) {
+                        ForEach(PromptPackPreset.allCases) { preset in
+                            Text(preset.title).tag(preset)
+                        }
+                    }
+
                     Picker("Mode", selection: $viewModel.selectedPromptMode) {
                         ForEach(PromptPackMode.allCases) { mode in
                             Text(mode.title).tag(mode)
