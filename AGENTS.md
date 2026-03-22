@@ -1,4 +1,4 @@
-## Purpose
+Telsh;dlgh;ldsfj;ljjl;sjd;lfjlkjdssdkjghh;ldshf;kljl;ksdfsdafsdafsdasdfdsfagwevsdf;lkjs;dljg;ljsdjfdshfljkkTTjds;lkjtkjekljr;jweljhlhgdsljl;kfjklsdjTsdfj;lsdjlfkjl;ksdjghldfhlkjsdlkjfdsj;ljasd;lfj;ldd## Purpose
 
 This repository is for building and maintaining **Godot Game Factory**, a local macOS app that creates Codex-friendly Godot project scaffolds.
 

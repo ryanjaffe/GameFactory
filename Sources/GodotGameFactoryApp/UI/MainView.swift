@@ -4,14 +4,16 @@ struct MainView: View {
     @ObservedObject var viewModel: AppViewModel
 
     var body: some View {
-        NavigationSplitView {
-            List {
+        HSplitView {
+            VStack(alignment: .leading, spacing: 12) {
                 Label("New Project", systemImage: "hammer")
                 Label("Settings", systemImage: "gearshape")
                 Label("Logs", systemImage: "text.append")
+                Spacer()
             }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-        } detail: {
+            .frame(minWidth: 180, idealWidth: 200, maxWidth: 220, maxHeight: .infinity, alignment: .topLeading)
+            .padding()
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     Text("Godot Game Factory")
@@ -41,6 +43,7 @@ struct MainView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(24)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
@@ -769,10 +772,10 @@ private struct NewProjectFormView: View {
                 Text("Required fields: project name and base directory. Everything else can be adjusted later.")
                     .foregroundStyle(.secondary)
 
-                TextField("Project Name", text: $viewModel.settings.projectName)
+                TextField("Project Name", text: projectNameBinding)
 
                 HStack(alignment: .center, spacing: 12) {
-                    TextField("Base Directory", text: $viewModel.settings.baseDirectory)
+                    TextField("Base Directory", text: baseDirectoryBinding)
 
                     Button("Choose Folder") {
                         viewModel.chooseBaseDirectory()
@@ -780,23 +783,23 @@ private struct NewProjectFormView: View {
                 }
 
                 HStack(alignment: .center, spacing: 12) {
-                    TextField("Godot Path (Optional)", text: $viewModel.settings.godotExecutablePath)
+                    TextField("Godot Path (Optional)", text: godotPathBinding)
 
                     Button("Choose App/Binary") {
                         viewModel.chooseGodotExecutablePath()
                     }
                 }
 
-                TextField("GitHub Username", text: $viewModel.settings.gitHubUsername)
+                TextField("GitHub Username", text: gitHubUsernameBinding)
 
-                Picker("Repo Visibility", selection: $viewModel.settings.repoVisibility) {
+                Picker("Repo Visibility", selection: repoVisibilityBinding) {
                     ForEach(RepoVisibility.allCases) { visibility in
                         Text(visibility.rawValue).tag(visibility)
                     }
                 }
                 .pickerStyle(.segmented)
 
-                Picker("Template", selection: $viewModel.settings.template) {
+                Picker("Template", selection: templateBinding) {
                     ForEach(ProjectTemplate.allCases) { template in
                         Text(template.rawValue).tag(template)
                     }
@@ -820,6 +823,48 @@ private struct NewProjectFormView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    private var projectNameBinding: Binding<String> {
+        Binding(
+            get: { viewModel.settings.projectName },
+            set: { viewModel.settings.projectName = $0 }
+        )
+    }
+
+    private var baseDirectoryBinding: Binding<String> {
+        Binding(
+            get: { viewModel.settings.baseDirectory },
+            set: { viewModel.settings.baseDirectory = $0 }
+        )
+    }
+
+    private var godotPathBinding: Binding<String> {
+        Binding(
+            get: { viewModel.settings.godotExecutablePath },
+            set: { viewModel.settings.godotExecutablePath = $0 }
+        )
+    }
+
+    private var gitHubUsernameBinding: Binding<String> {
+        Binding(
+            get: { viewModel.settings.gitHubUsername },
+            set: { viewModel.settings.gitHubUsername = $0 }
+        )
+    }
+
+    private var repoVisibilityBinding: Binding<RepoVisibility> {
+        Binding(
+            get: { viewModel.settings.repoVisibility },
+            set: { viewModel.settings.repoVisibility = $0 }
+        )
+    }
+
+    private var templateBinding: Binding<ProjectTemplate> {
+        Binding(
+            get: { viewModel.settings.template },
+            set: { viewModel.settings.template = $0 }
+        )
     }
 }
 
