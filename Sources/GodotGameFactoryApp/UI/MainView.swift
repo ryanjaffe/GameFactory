@@ -1,14 +1,69 @@
 import SwiftUI
 
 struct MainView: View {
+    private enum SidebarSection: String, CaseIterable, Identifiable {
+        case newProject
+        case settings
+        case logs
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .newProject:
+                return "New Project"
+            case .settings:
+                return "Settings"
+            case .logs:
+                return "Logs"
+            }
+        }
+
+        var systemImageName: String {
+            switch self {
+            case .newProject:
+                return "hammer"
+            case .settings:
+                return "gearshape"
+            case .logs:
+                return "text.append"
+            }
+        }
+
+        var description: String {
+            switch self {
+            case .newProject:
+                return "Create projects, reuse presets, and continue recent work."
+            case .settings:
+                return "Inspect, audit, edit workflow files, and manage project tools."
+            case .logs:
+                return "Review the latest app activity and automation output."
+            }
+        }
+    }
+
     @ObservedObject var viewModel: AppViewModel
+    @State private var selectedSection: SidebarSection = .newProject
 
     var body: some View {
         HSplitView {
             VStack(alignment: .leading, spacing: 12) {
-                Label("New Project", systemImage: "hammer")
-                Label("Settings", systemImage: "gearshape")
-                Label("Logs", systemImage: "text.append")
+                ForEach(SidebarSection.allCases) { section in
+                    Button {
+                        selectedSection = section
+                    } label: {
+                        Label(section.title, systemImage: section.systemImageName)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(selectedSection == section ? Color.accentColor.opacity(0.15) : Color.clear)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+
                 Spacer()
             }
             .frame(minWidth: 180, idealWidth: 200, maxWidth: 220, maxHeight: .infinity, alignment: .topLeading)
@@ -16,29 +71,34 @@ struct MainView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    Text("Godot Game Factory")
+                    Text(selectedSection.title)
                         .font(.largeTitle)
                         .fontWeight(.semibold)
 
-                    Text("Create or inspect a Godot project, keep the workflow files editable, and hand the project off cleanly to Codex or Godot.")
+                    Text(selectedSection.description)
                         .foregroundStyle(.secondary)
 
-                    PresetsView(viewModel: viewModel)
-                    NewProjectFormView(viewModel: viewModel)
-                    ProjectInspectorView(viewModel: viewModel)
-                    ProjectAuditView(viewModel: viewModel)
-                    AssetImportView(viewModel: viewModel)
-                    AssetStarterPacksView(viewModel: viewModel)
-                    HandoffBundleView(viewModel: viewModel)
-                    ProjectSummaryView(viewModel: viewModel)
-                    WorkflowFilesView(viewModel: viewModel)
-                    WorkflowSettingsView(viewModel: viewModel)
-                    PromptPackView(viewModel: viewModel)
-                    PostCreateActionsView(viewModel: viewModel)
-                    CodexHandoffStatusView(viewModel: viewModel)
-                    RecentProjectsView(viewModel: viewModel)
-
-                    LogPanelView(entries: viewModel.logEntries)
+                    switch selectedSection {
+                    case .newProject:
+                        PresetsView(viewModel: viewModel)
+                        NewProjectFormView(viewModel: viewModel)
+                        ProjectSummaryView(viewModel: viewModel)
+                        PromptPackView(viewModel: viewModel)
+                        PostCreateActionsView(viewModel: viewModel)
+                        CodexHandoffStatusView(viewModel: viewModel)
+                        RecentProjectsView(viewModel: viewModel)
+                    case .settings:
+                        SettingsActiveProjectView(viewModel: viewModel)
+                        ProjectInspectorView(viewModel: viewModel)
+                        ProjectAuditView(viewModel: viewModel)
+                        AssetImportView(viewModel: viewModel)
+                        AssetStarterPacksView(viewModel: viewModel)
+                        HandoffBundleView(viewModel: viewModel)
+                        WorkflowFilesView(viewModel: viewModel)
+                        WorkflowSettingsView(viewModel: viewModel)
+                    case .logs:
+                        LogPanelView(searchText: $viewModel.logSearchText, entries: viewModel.filteredLogEntries)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(24)
@@ -61,8 +121,13 @@ private struct AssetStarterPacksView: View {
                     ActiveProjectContextView(
                         label: viewModel.activeProjectContextLabel,
                         name: viewModel.activeProjectName,
-                        path: activeProjectURL.path
+                        path: activeProjectURL.path,
+                        detail: viewModel.activeProjectContextDetailText
                     )
+
+                    if let status = viewModel.assetImportStatus {
+                        InlineStatusMessageView(status: status)
+                    }
 
                     ForEach(viewModel.assetStarterPacks) { pack in
                         VStack(alignment: .leading, spacing: 6) {
@@ -70,13 +135,24 @@ private struct AssetStarterPacksView: View {
                                 .fontWeight(.medium)
                             Text(pack.description)
                                 .foregroundStyle(.secondary)
+
+                            if !viewModel.starterPackValidationIssues(for: pack).isEmpty {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    ForEach(viewModel.starterPackValidationIssues(for: pack), id: \.self) { issue in
+                                        Text("• \(issue)")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+
                             Button("Apply \(pack.title)") {
                                 viewModel.applyAssetStarterPack(pack)
                             }
+                            .disabled(!viewModel.canApplyStarterPack(pack))
                         }
                     }
                 } else {
-                    EmptyStateText("No active project yet. Create, inspect, or select a project before applying a starter pack.")
+                    ActiveProjectRequiredEmptyState()
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -97,14 +173,33 @@ private struct HandoffBundleView: View {
                     ActiveProjectContextView(
                         label: viewModel.activeProjectContextLabel,
                         name: viewModel.activeProjectName,
-                        path: activeProjectURL.path
+                        path: activeProjectURL.path,
+                        detail: viewModel.activeProjectContextDetailText
                     )
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Bundle Preview")
+                            .fontWeight(.medium)
+
+                        ForEach(viewModel.handoffBundlePreviewItems) { item in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.title)
+                                    .fontWeight(.medium)
+                                Text(item.detail)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
 
                     Button("Copy Handoff Bundle") {
                         viewModel.copyHandoffBundle()
                     }
+
+                    if let status = viewModel.handoffBundleStatus {
+                        InlineStatusMessageView(status: status)
+                    }
                 } else {
-                    EmptyStateText("No active project yet. Create, inspect, or select a project before exporting a handoff bundle.")
+                    ActiveProjectRequiredEmptyState()
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -125,11 +220,16 @@ private struct AssetImportView: View {
                     ActiveProjectContextView(
                         label: viewModel.activeProjectContextLabel,
                         name: viewModel.activeProjectName,
-                        path: activeProjectURL.path
+                        path: activeProjectURL.path,
+                        detail: viewModel.activeProjectContextDetailText
                     )
 
                     Button("Import Assets") {
                         viewModel.importAssets()
+                    }
+
+                    if let status = viewModel.assetImportStatus {
+                        InlineStatusMessageView(status: status)
                     }
 
                     if let summary = viewModel.lastAssetImport {
@@ -144,7 +244,7 @@ private struct AssetImportView: View {
                         EmptyStateText("No imported assets yet for this active project.")
                     }
                 } else {
-                    EmptyStateText("No active project yet. Create, inspect, or select a project before importing assets.")
+                    ActiveProjectRequiredEmptyState()
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -267,7 +367,8 @@ private struct ProjectAuditView: View {
                     ActiveProjectContextView(
                         label: viewModel.activeProjectContextLabel,
                         name: viewModel.activeProjectName,
-                        path: activeProjectURL.path
+                        path: activeProjectURL.path,
+                        detail: viewModel.activeProjectContextDetailText
                     )
                 }
 
@@ -291,7 +392,7 @@ private struct ProjectAuditView: View {
                         }
                     }
                 } else if viewModel.activeProjectURL == nil {
-                    EmptyStateText("No active project yet. Use the current project, inspect an existing one, or select a recent project before running an audit.")
+                    ActiveProjectRequiredEmptyState()
                 } else {
                     EmptyStateText("No audit run yet. Run the audit to check whether the active project still looks healthy and Codex-ready.")
                 }
@@ -443,10 +544,17 @@ private struct PromptPackView: View {
 
     var body: some View {
         GroupBox("Codex Prompt Pack") {
-            if viewModel.hasPromptPack, let selectedPrompt = viewModel.selectedPrompt {
+            if let activeProjectURL = viewModel.activeProjectURL, viewModel.hasPromptPack {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Use these template-aware prompts for the active project. Imported asset context is included when files are available under `art/`.")
                         .foregroundStyle(.secondary)
+
+                    ActiveProjectContextView(
+                        label: viewModel.activeProjectContextLabel,
+                        name: viewModel.activeProjectName,
+                        path: activeProjectURL.path,
+                        detail: viewModel.activeProjectContextDetailText
+                    )
 
                     Picker("Prompt", selection: $viewModel.selectedPromptKind) {
                         ForEach(viewModel.availablePromptPack) { prompt in
@@ -454,12 +562,28 @@ private struct PromptPackView: View {
                         }
                     }
 
-                    Text(selectedPrompt.body)
-                        .textSelection(.enabled)
-                        .font(.callout)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Picker("Mode", selection: $viewModel.selectedPromptMode) {
+                        ForEach(PromptPackMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Include")
+                            .fontWeight(.medium)
+
+                        Toggle("Project Summary", isOn: $viewModel.includeProjectSummary)
+                        Toggle("Workflow Files", isOn: $viewModel.includeWorkflowFiles)
+                        Toggle("Starter Context", isOn: $viewModel.includeStarterContext)
+                        Toggle("Notes / Context", isOn: $viewModel.includeNotesOrContext)
+                    }
 
                     HStack {
+                        Button("Generate Preview") {
+                            viewModel.generatePromptPreview()
+                        }
+
                         Button("Copy Prompt") {
                             viewModel.copySelectedPrompt()
                         }
@@ -468,10 +592,40 @@ private struct PromptPackView: View {
                             viewModel.copyActiveCodexStarterPrompt()
                         }
                     }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Preview")
+                            .fontWeight(.medium)
+
+                        ScrollView {
+                            if viewModel.hasPromptPreview {
+                                Text(viewModel.promptPackPreviewText)
+                                    .textSelection(.enabled)
+                                    .font(.system(.callout, design: .monospaced))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            } else {
+                                EmptyStateText("No preview generated yet. Choose a mode and sections, then click Generate Preview.")
+                            }
+                        }
+                        .frame(minHeight: 180)
+                    }
+
+                    if let status = viewModel.promptPackStatus {
+                        InlineStatusMessageView(status: status)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                EmptyStateText("No active project yet. Create, inspect, or select a project before using the prompt pack.")
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Use these template-aware prompts for the active project. Imported asset context is included when files are available under `art/`.")
+                        .foregroundStyle(.secondary)
+
+                    if viewModel.activeProjectURL == nil {
+                        ActiveProjectRequiredEmptyState()
+                    } else {
+                        EmptyStateText("No prompt pack is available for the current project yet.")
+                    }
+                }
             }
         }
     }
@@ -581,7 +735,8 @@ private struct WorkflowSettingsView: View {
                     ActiveProjectContextView(
                         label: viewModel.activeProjectContextLabel,
                         name: viewModel.activeProjectName,
-                        path: activeProjectURL.path
+                        path: activeProjectURL.path,
+                        detail: viewModel.activeProjectContextDetailText
                     )
 
                     VStack(alignment: .leading, spacing: 4) {
@@ -623,7 +778,7 @@ private struct WorkflowSettingsView: View {
                         }
                     }
                 } else {
-                    EmptyStateText("No active project yet. Create, inspect, or select a project before editing per-project workflow settings.")
+                    ActiveProjectRequiredEmptyState()
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -644,7 +799,8 @@ private struct WorkflowFilesView: View {
                     ActiveProjectContextView(
                         label: viewModel.activeProjectContextLabel,
                         name: viewModel.workflowFileTargetProjectName,
-                        path: viewModel.workflowFileTargetProjectPath
+                        path: viewModel.workflowFileTargetProjectPath,
+                        detail: viewModel.activeProjectContextDetailText
                     )
 
                     HStack {
@@ -653,6 +809,10 @@ private struct WorkflowFilesView: View {
                                 viewModel.openWorkflowFile(file)
                             }
                         }
+                    }
+
+                    if let status = viewModel.workflowFileStatus {
+                        InlineStatusMessageView(status: status)
                     }
 
                     if let selectedWorkflowFile = viewModel.selectedWorkflowFile {
@@ -698,12 +858,29 @@ private struct WorkflowFilesView: View {
                                         .foregroundStyle(.secondary)
                                 }
                             }
+
+                            if let pendingFileName = viewModel.pendingWorkflowRepairFileName {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Restore the default \(pendingFileName)? This will overwrite the current file on disk.")
+                                        .foregroundStyle(.secondary)
+
+                                    HStack {
+                                        Button("Confirm Restore Default") {
+                                            viewModel.repairSelectedWorkflowFile()
+                                        }
+
+                                        Button("Cancel") {
+                                            viewModel.cancelWorkflowFileRepairConfirmation()
+                                        }
+                                    }
+                                }
+                            }
                         }
                     } else {
                         EmptyStateText("Open AGENTS.md, README.md, or run_validation.sh to inspect, edit, or restore it here.")
                     }
                 } else {
-                    EmptyStateText("No active project yet. Create, inspect, or select a project before editing workflow files.")
+                    ActiveProjectRequiredEmptyState()
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -807,18 +984,35 @@ private struct NewProjectFormView: View {
 
                 Toggle("Dry Run", isOn: $viewModel.dryRunEnabled)
 
+                if !viewModel.createProjectValidationIssues.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Before continuing:")
+                            .fontWeight(.medium)
+                            .foregroundStyle(.orange)
+
+                        ForEach(viewModel.createProjectValidationIssues, id: \.self) { issue in
+                            Text("• \(issue)")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
                 HStack {
                     Button("Preview Plan") {
                         viewModel.previewProject()
                     }
-                    .disabled(!viewModel.canPreviewOrCreateProject)
+                    .disabled(!viewModel.canCreateProject)
 
                     Spacer()
                     Button(viewModel.dryRunEnabled ? "Run Dry Preview" : "Create Project") {
                         viewModel.createProject()
                     }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(!viewModel.canPreviewOrCreateProject)
+                    .disabled(!viewModel.canCreateProject)
+                }
+
+                if let status = viewModel.createProjectStatus {
+                    InlineStatusMessageView(status: status)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -882,16 +1076,108 @@ private struct EmptyStateText: View {
     }
 }
 
+private struct SettingsActiveProjectView: View {
+    @ObservedObject var viewModel: AppViewModel
+
+    var body: some View {
+        GroupBox("Current Project") {
+            if let activeProjectURL = viewModel.activeProjectURL {
+                VStack(alignment: .leading, spacing: 12) {
+                    ActiveProjectContextView(
+                        label: viewModel.activeProjectContextLabel,
+                        name: viewModel.activeProjectName,
+                        path: activeProjectURL.path,
+                        detail: viewModel.activeProjectContextDetailText
+                    )
+
+                    HStack {
+                        Button("Reveal in Finder") {
+                            viewModel.revealActiveProjectInFinder()
+                        }
+
+                        Button("Copy Path") {
+                            viewModel.copyActiveProjectPath()
+                        }
+
+                        Button("Copy Name") {
+                            viewModel.copyActiveProjectName()
+                        }
+                    }
+
+                    if let status = viewModel.activeProjectStatus {
+                        InlineStatusMessageView(status: status)
+                    }
+                }
+            } else {
+                ActiveProjectRequiredEmptyState()
+            }
+        }
+    }
+}
+
+private struct ActiveProjectRequiredEmptyState: View {
+    var body: some View {
+        EmptyStateText("An active project is required here. Create a new project, inspect an existing project, or select a recent project to continue.")
+    }
+}
+
+private struct InlineStatusMessageView: View {
+    let status: UIStatusMessage
+
+    var body: some View {
+        Text(status.text)
+            .foregroundStyle(foregroundColor)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(backgroundColor)
+            )
+    }
+
+    private var foregroundColor: Color {
+        switch status.kind {
+        case .success:
+            return .green
+        case .error:
+            return .red
+        }
+    }
+
+    private var backgroundColor: Color {
+        switch status.kind {
+        case .success:
+            return Color.green.opacity(0.12)
+        case .error:
+            return Color.red.opacity(0.12)
+        }
+    }
+}
+
 private struct ActiveProjectContextView: View {
     let label: String
     let name: String
     let path: String
+    let detail: String?
+
+    init(label: String, name: String, path: String, detail: String? = nil) {
+        self.label = label
+        self.name = name
+        self.path = path
+        self.detail = detail
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
                 .fontWeight(.medium)
             Text(name)
+                .fontWeight(.medium)
+            if let detail {
+                Text(detail)
+                    .foregroundStyle(.secondary)
+            }
             Text(path)
                 .textSelection(.enabled)
                 .foregroundStyle(.secondary)

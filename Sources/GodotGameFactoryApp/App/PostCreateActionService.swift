@@ -25,6 +25,10 @@ struct PostCreateActionService {
         copyText(projectURL.path, successMessage: "Copied project path.")
     }
 
+    func copyProjectName(_ projectName: String) -> Result<String, Error> {
+        copyText(projectName, successMessage: "Copied project name.")
+    }
+
     func openInTerminal(projectURL: URL) -> Result<String, Error> {
         let command = terminalOpenCommand(for: projectURL)
         do {

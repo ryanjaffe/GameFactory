@@ -17,5 +17,10 @@ let package = Package(
             name: "GodotGameFactoryApp",
             path: "Sources/GodotGameFactoryApp"
         ),
+        .testTarget(
+            name: "GodotGameFactoryAppTests",
+            dependencies: ["GodotGameFactoryApp"],
+            path: "Tests/GodotGameFactoryAppTests"
+        ),
     ]
 )

@@ -1,5 +1,60 @@
 import SwiftUI
 
+enum PromptPackMode: String, CaseIterable, Identifiable {
+    case standard
+    case planning
+    case implementation
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .standard:
+            return "Standard"
+        case .planning:
+            return "Planning"
+        case .implementation:
+            return "Implementation"
+        }
+    }
+
+    var promptHeader: String? {
+        switch self {
+        case .standard:
+            return nil
+        case .planning:
+            return "Focus on planning and architecture."
+        case .implementation:
+            return "Focus on concrete implementation steps."
+        }
+    }
+}
+
+struct UIStatusMessage {
+    enum Kind {
+        case success
+        case error
+    }
+
+    let kind: Kind
+    let text: String
+
+    static func success(_ text: String) -> UIStatusMessage {
+        UIStatusMessage(kind: .success, text: text)
+    }
+
+    static func error(_ text: String) -> UIStatusMessage {
+        UIStatusMessage(kind: .error, text: text)
+    }
+}
+
+struct HandoffBundlePreviewItem: Identifiable {
+    let title: String
+    let detail: String
+
+    var id: String { title }
+}
+
 @MainActor
 final class AppViewModel: ObservableObject {
     @Published var settings: AppSettings {
@@ -17,10 +72,29 @@ final class AppViewModel: ObservableObject {
         }
     }
     @Published private(set) var logEntries: [LogEntry]
+    @Published var logSearchText = ""
     @Published var dryRunEnabled = false
     @Published var presetNameDraft = ""
     @Published var selectedPresetName = ""
-    @Published var selectedPromptKind: CodexPromptKind = .starter
+    @Published var selectedPromptKind: CodexPromptKind = .starter {
+        didSet { clearPromptPreview() }
+    }
+    @Published var promptPackPreviewText = ""
+    @Published var selectedPromptMode: PromptPackMode = .standard {
+        didSet { clearPromptPreview() }
+    }
+    @Published var includeProjectSummary = true {
+        didSet { clearPromptPreview() }
+    }
+    @Published var includeWorkflowFiles = true {
+        didSet { clearPromptPreview() }
+    }
+    @Published var includeStarterContext = true {
+        didSet { clearPromptPreview() }
+    }
+    @Published var includeNotesOrContext = true {
+        didSet { clearPromptPreview() }
+    }
     @Published private(set) var lastCreatedProjectURL: URL?
     @Published private(set) var lastCreatedTemplate: ProjectTemplate?
     @Published private(set) var lastCreatedSummary: ProjectCreationSummary?
@@ -56,6 +130,12 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var workflowSettingsStatusMessage = ""
     @Published private(set) var workflowSettingsHasUnsavedChanges = false
     @Published private(set) var workflowSettingsUsingDefaults = true
+    @Published private(set) var createProjectStatus: UIStatusMessage?
+    @Published private(set) var promptPackStatus: UIStatusMessage?
+    @Published private(set) var handoffBundleStatus: UIStatusMessage?
+    @Published private(set) var assetImportStatus: UIStatusMessage?
+    @Published private(set) var workflowFileStatus: UIStatusMessage?
+    @Published private(set) var activeProjectStatus: UIStatusMessage?
 
     private let logger: AppLogger
     private let settingsStore: AppSettingsStore
@@ -93,9 +173,50 @@ final class AppViewModel: ObservableObject {
         lastCreatedProjectURL != nil
     }
 
-    var canPreviewOrCreateProject: Bool {
-        !settings.projectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !settings.baseDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    var filteredLogEntries: [LogEntry] {
+        let trimmedSearchText = logSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedSearchText.isEmpty else {
+            return logEntries
+        }
+
+        return logEntries.filter { entry in
+            entry.message.localizedCaseInsensitiveContains(trimmedSearchText)
+        }
+    }
+
+    var createProjectValidationIssues: [String] {
+        let trimmedName = settings.projectName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedBaseDirectory = settings.baseDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
+        var issues: [String] = []
+
+        if trimmedName.isEmpty {
+            issues.append("Project name is required.")
+        }
+
+        if trimmedBaseDirectory.isEmpty {
+            issues.append("Base directory is required.")
+        } else {
+            var isDirectory: ObjCBool = false
+            if !FileManager.default.fileExists(atPath: trimmedBaseDirectory, isDirectory: &isDirectory) {
+                issues.append("Base directory does not exist.")
+            } else if !isDirectory.boolValue {
+                issues.append("Base directory must be a folder.")
+            }
+        }
+
+        return issues
+    }
+
+    var createProjectValidationSummary: String? {
+        guard !createProjectValidationIssues.isEmpty else {
+            return nil
+        }
+
+        return createProjectValidationIssues.joined(separator: "\n")
+    }
+
+    var canCreateProject: Bool {
+        createProjectValidationIssues.isEmpty
     }
 
     var hasProjectSummary: Bool {
@@ -128,6 +249,32 @@ final class AppViewModel: ObservableObject {
 
     var hasAssetStarterPacks: Bool {
         !assetStarterPacks.isEmpty
+    }
+
+    func starterPackValidationIssues(for pack: AssetStarterPack) -> [String] {
+        var issues: [String] = []
+
+        guard let activeProjectURL else {
+            issues.append("An active project is required.")
+            return issues
+        }
+
+        var isDirectory: ObjCBool = false
+        if !FileManager.default.fileExists(atPath: activeProjectURL.path, isDirectory: &isDirectory) {
+            issues.append("The active project folder no longer exists.")
+        } else if !isDirectory.boolValue {
+            issues.append("The active project path must be a folder.")
+        }
+
+        if pack.files.isEmpty {
+            issues.append("This starter pack has no files to import.")
+        }
+
+        return issues
+    }
+
+    func canApplyStarterPack(_ pack: AssetStarterPack) -> Bool {
+        starterPackValidationIssues(for: pack).isEmpty
     }
 
     var hasHandoffBundleTarget: Bool {
@@ -187,8 +334,61 @@ final class AppViewModel: ObservableObject {
         return inspectedProjectSummary?.detectedTemplate ?? lastCreatedTemplate
     }
 
+    var hasActiveProject: Bool {
+        activeProjectURL != nil
+    }
+
+    var activeProjectSourceDisplayText: String {
+        switch activeProjectSource {
+        case .recent:
+            return "Selected recent project"
+        case .inspected:
+            return "Inspected project"
+        case .lastCreated:
+            return "Last created project"
+        case .none:
+            return "No active project"
+        }
+    }
+
+    var activeProjectTemplateDisplayText: String {
+        activeProjectTemplate?.rawValue ?? "Unknown template"
+    }
+
+    var activeProjectContextDetailText: String {
+        "\(activeProjectSourceDisplayText) • \(activeProjectTemplateDisplayText)"
+    }
+
     var activeHandoffBundleText: String? {
         buildHandoffBundleText()
+    }
+
+    var handoffBundlePreviewItems: [HandoffBundlePreviewItem] {
+        guard let input = buildHandoffBundleInput() else {
+            return []
+        }
+
+        let workflowFileDetail = input.workflowFiles.isEmpty
+            ? "No workflow files detected."
+            : input.workflowFiles.joined(separator: ", ")
+        let auditDetail = input.auditSummaryText == nil
+            ? "No recent audit is available."
+            : "Included when copied."
+        let assetsDetail = input.recentAssetImportText ?? "No recent imports recorded in the current app session."
+        let workflowSettingsDetail = input.workflowSettingsSummaryText == nil
+            ? "No workflow settings summary will be included."
+            : "Included when project-local workflow settings differ from defaults."
+
+        return [
+            HandoffBundlePreviewItem(title: "Summary", detail: "\(input.projectName) • \(input.templateName)"),
+            HandoffBundlePreviewItem(title: "Workflow Files", detail: workflowFileDetail),
+            HandoffBundlePreviewItem(title: "File Tree", detail: "Included from the active project."),
+            HandoffBundlePreviewItem(title: "Audit", detail: auditDetail),
+            HandoffBundlePreviewItem(title: "Assets", detail: assetsDetail),
+            HandoffBundlePreviewItem(title: "Workflow Settings", detail: workflowSettingsDetail),
+            HandoffBundlePreviewItem(title: "Starter Prompt", detail: "Included from the active project's current prompt pack."),
+            HandoffBundlePreviewItem(title: "Next Steps", detail: input.nextSteps.joined(separator: " • "))
+        ]
     }
 
     var hasWorkflowFileTarget: Bool {
@@ -232,11 +432,11 @@ final class AppViewModel: ObservableObject {
             return "Regenerate Missing \(selectedWorkflowFile.fileName)"
         }
 
-        if pendingWorkflowFileRepairConfirmation == selectedWorkflowFile {
-            return "Confirm Restore Default"
-        }
-
         return "Restore Default"
+    }
+
+    var pendingWorkflowRepairFileName: String? {
+        pendingWorkflowFileRepairConfirmation?.fileName
     }
 
     var hasOpenedWorkflowFile: Bool {
@@ -301,6 +501,10 @@ final class AppViewModel: ObservableObject {
 
     var selectedPrompt: CodexPrompt? {
         availablePromptPack.first(where: { $0.kind == selectedPromptKind }) ?? availablePromptPack.first
+    }
+
+    var hasPromptPreview: Bool {
+        !promptPackPreviewText.isEmpty
     }
 
     init(
@@ -381,18 +585,13 @@ final class AppViewModel: ObservableObject {
             return
         }
 
+        guard canCreateProject else {
+            logCreateProjectValidationIssues(prefix: "Create Project blocked")
+            return
+        }
+
         let trimmedName = settings.projectName.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedBaseDirectory = settings.baseDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !trimmedName.isEmpty else {
-            log("Create Project blocked: project name is required")
-            return
-        }
-
-        guard !trimmedBaseDirectory.isEmpty else {
-            log("Create Project blocked: base directory is required")
-            return
-        }
 
         log("Create Project pressed")
         if !hasSavedSettings && settingsStore.save(settings) {
@@ -440,6 +639,7 @@ final class AppViewModel: ObservableObject {
                     recordRecentProject(from: lastCreatedSummary)
                 }
                 log("GitHub setup skipped: local Git setup did not complete successfully.")
+                createProjectStatus = .error("Project created, but local Git setup failed.")
                 return
             }
 
@@ -465,24 +665,21 @@ final class AppViewModel: ObservableObject {
             if let lastCreatedSummary {
                 recordRecentProject(from: lastCreatedSummary)
             }
+            createProjectStatus = .success("Created \(trimmedName) at \(result.finalProjectURL.path).")
         } catch {
             log("Project generation failed: \(error.localizedDescription)")
+            createProjectStatus = .error("Project creation failed. \(error.localizedDescription)")
         }
     }
 
     func previewProject() {
+        guard canCreateProject else {
+            logCreateProjectValidationIssues(prefix: "Preview blocked")
+            return
+        }
+
         let trimmedName = settings.projectName.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedBaseDirectory = settings.baseDirectory.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !trimmedName.isEmpty else {
-            log("Preview blocked: project name is required")
-            return
-        }
-
-        guard !trimmedBaseDirectory.isEmpty else {
-            log("Preview blocked: base directory is required")
-            return
-        }
 
         log("Dry run preview started")
         log("Previewing project name: \(trimmedName)")
@@ -526,8 +723,10 @@ final class AppViewModel: ObservableObject {
             }
 
             log("Dry run preview complete. No files or folders were created.")
+            createProjectStatus = .success("Preview ready for \(plan.finalProjectURL.path).")
         } catch {
             log("Preview failed: \(error.localizedDescription)")
+            createProjectStatus = .error("Preview failed. \(error.localizedDescription)")
         }
     }
 
@@ -640,6 +839,7 @@ final class AppViewModel: ObservableObject {
             workflowFileNotFound = true
             workflowFileHasUnsavedChanges = false
             log("Workflow file not found: \(kind.fileName)")
+            workflowFileStatus = .error("\(kind.fileName) is missing.")
             return
         }
 
@@ -649,6 +849,7 @@ final class AppViewModel: ObservableObject {
             workflowFileNotFound = false
             workflowFileHasUnsavedChanges = false
             log("Workflow file open failed: could not read \(kind.fileName).")
+            workflowFileStatus = .error("Could not read \(kind.fileName).")
             return
         }
 
@@ -657,6 +858,7 @@ final class AppViewModel: ObservableObject {
         workflowFileNotFound = false
         workflowFileHasUnsavedChanges = false
         log("Opened workflow file: \(kind.fileName)")
+        workflowFileStatus = .success("Opened \(kind.fileName).")
     }
 
     func updateWorkflowEditorText(_ text: String) {
@@ -684,8 +886,10 @@ final class AppViewModel: ObservableObject {
             workflowFileHasUnsavedChanges = false
             workflowEditorFilePath = fileURL.path
             log("Saved workflow file: \(selectedWorkflowFile.fileName)")
+            workflowFileStatus = .success("Saved \(selectedWorkflowFile.fileName).")
         } catch {
             log("Workflow file save failed: \(error.localizedDescription)")
+            workflowFileStatus = .error("Could not save \(selectedWorkflowFile.fileName). \(error.localizedDescription)")
         }
     }
 
@@ -717,12 +921,23 @@ final class AppViewModel: ObservableObject {
             for importedFile in importSummary.importedFiles {
                 log("Imported asset: \(importedFile.destinationURL.lastPathComponent)")
             }
+            assetImportStatus = .success("Imported \(importSummary.importedFiles.count) asset(s).")
         } catch {
             log("Asset import failed: \(error.localizedDescription)")
+            assetImportStatus = .error("Asset import failed. \(error.localizedDescription)")
         }
     }
 
     func applyAssetStarterPack(_ pack: AssetStarterPack) {
+        let validationIssues = starterPackValidationIssues(for: pack)
+        guard validationIssues.isEmpty else {
+            for issue in validationIssues {
+                log("Asset starter pack blocked: \(issue)")
+            }
+            assetImportStatus = .error(validationIssues.joined(separator: " "))
+            return
+        }
+
         guard let activeProjectURL else {
             log("Asset starter pack skipped: no project is selected.")
             return
@@ -739,8 +954,10 @@ final class AppViewModel: ObservableObject {
             for importedFile in importSummary.importedFiles {
                 log("Imported asset: \(importedFile.destinationURL.lastPathComponent)")
             }
+            assetImportStatus = .success("Applied \(pack.title).")
         } catch {
             log("Asset starter pack failed: \(error.localizedDescription)")
+            assetImportStatus = .error("Could not apply \(pack.title). \(error.localizedDescription)")
         }
     }
 
@@ -753,8 +970,61 @@ final class AppViewModel: ObservableObject {
         switch postCreateActionService.copyHandoffBundle(bundleText) {
         case let .success(message):
             log(message)
+            handoffBundleStatus = .success("Copied handoff bundle.")
         case let .failure(error):
             log("Handoff bundle failed: \(error.localizedDescription)")
+            handoffBundleStatus = .error("Could not copy handoff bundle. \(error.localizedDescription)")
+        }
+    }
+
+    func revealActiveProjectInFinder() {
+        guard let activeProjectURL else {
+            log("Finder reveal skipped: no project is selected.")
+            activeProjectStatus = .error("No active project is available to reveal.")
+            return
+        }
+
+        switch postCreateActionService.openInFinder(projectURL: activeProjectURL) {
+        case let .success(message):
+            log(message)
+            activeProjectStatus = .success("Revealed \(activeProjectName) in Finder.")
+        case let .failure(error):
+            log("Finder reveal failed: \(error.localizedDescription)")
+            activeProjectStatus = .error("Could not reveal the active project. \(error.localizedDescription)")
+        }
+    }
+
+    func copyActiveProjectPath() {
+        guard let activeProjectURL else {
+            log("Copy project path skipped: no project is selected.")
+            activeProjectStatus = .error("No active project to copy.")
+            return
+        }
+
+        switch postCreateActionService.copyProjectPath(projectURL: activeProjectURL) {
+        case let .success(message):
+            log(message)
+            activeProjectStatus = .success("Copied project path.")
+        case let .failure(error):
+            log("Copy project path failed: \(error.localizedDescription)")
+            activeProjectStatus = .error("Could not copy project path. \(error.localizedDescription)")
+        }
+    }
+
+    func copyActiveProjectName() {
+        guard hasActiveProject else {
+            log("Copy project name skipped: no project is selected.")
+            activeProjectStatus = .error("No active project to copy.")
+            return
+        }
+
+        switch postCreateActionService.copyProjectName(activeProjectName) {
+        case let .success(message):
+            log(message)
+            activeProjectStatus = .success("Copied project name.")
+        case let .failure(error):
+            log("Copy project name failed: \(error.localizedDescription)")
+            activeProjectStatus = .error("Could not copy project name. \(error.localizedDescription)")
         }
     }
 
@@ -780,6 +1050,7 @@ final class AppViewModel: ObservableObject {
 
         if !workflowFileNotFound, pendingWorkflowFileRepairConfirmation != selectedWorkflowFile {
             pendingWorkflowFileRepairConfirmation = selectedWorkflowFile
+            workflowFileStatus = .error("Restore default will overwrite the current \(selectedWorkflowFile.fileName). Confirm or cancel below.")
             log("Restore default requested for \(selectedWorkflowFile.fileName). Press Confirm Restore Default to overwrite it.")
             return
         }
@@ -809,10 +1080,22 @@ final class AppViewModel: ObservableObject {
             } else {
                 log("\(actionVerb) \(selectedWorkflowFile.fileName).")
             }
+            workflowFileStatus = .success(result.restoredExistingFile ? "Restored default \(selectedWorkflowFile.fileName)." : "Regenerated \(selectedWorkflowFile.fileName).")
         } catch {
             pendingWorkflowFileRepairConfirmation = nil
             log("Workflow file repair failed: \(error.localizedDescription)")
+            workflowFileStatus = .error("Could not restore \(selectedWorkflowFile.fileName). \(error.localizedDescription)")
         }
+    }
+
+    func cancelWorkflowFileRepairConfirmation() {
+        guard pendingWorkflowFileRepairConfirmation != nil else {
+            return
+        }
+
+        pendingWorkflowFileRepairConfirmation = nil
+        workflowFileStatus = nil
+        log("Workflow file restore canceled.")
     }
 
     func saveWorkflowSettings() {
@@ -944,8 +1227,10 @@ final class AppViewModel: ObservableObject {
         switch postCreateActionService.copyPrompt(prompt.body, title: prompt.title) {
         case let .success(message):
             log(message)
+            promptPackStatus = .success("Copied \(prompt.title).")
         case let .failure(error):
             log("Prompt action failed: \(error.localizedDescription)")
+            promptPackStatus = .error("Could not copy \(prompt.title). \(error.localizedDescription)")
         }
     }
 
@@ -964,8 +1249,10 @@ final class AppViewModel: ObservableObject {
         switch postCreateActionService.copyPrompt(prompt.body, title: prompt.title) {
         case let .success(message):
             log(message)
+            promptPackStatus = .success("Copied \(prompt.title).")
         case let .failure(error):
             log("Prompt action failed: \(error.localizedDescription)")
+            promptPackStatus = .error("Could not copy \(prompt.title). \(error.localizedDescription)")
         }
     }
 
@@ -983,17 +1270,34 @@ final class AppViewModel: ObservableObject {
     }
 
     func copySelectedPrompt() {
-        guard let prompt = selectedPrompt else {
+        let promptTitle = selectedPrompt?.title ?? selectedPromptKind.title
+
+        guard let promptBody = promptPreviewOrGeneratedText() else {
             log("Prompt action skipped: no prompt pack is available yet.")
+            promptPackStatus = .error("No active project prompt is available.")
             return
         }
 
-        switch postCreateActionService.copyPrompt(prompt.body, title: prompt.title) {
+        switch postCreateActionService.copyPrompt(promptBody, title: promptTitle) {
         case let .success(message):
             log(message)
+            promptPackStatus = .success("Copied prompt.")
         case let .failure(error):
             log("Prompt action failed: \(error.localizedDescription)")
+            promptPackStatus = .error("Could not copy prompt. \(error.localizedDescription)")
         }
+    }
+
+    func generatePromptPreview() {
+        guard let previewText = generatedPromptPreviewText() else {
+            log("Prompt preview skipped: no prompt pack is available yet.")
+            promptPackStatus = .error("No active project prompt is available.")
+            return
+        }
+
+        promptPackPreviewText = previewText
+        log("Prompt preview generated for \(selectedPromptKind.title) in \(selectedPromptMode.title.lowercased()) mode.")
+        promptPackStatus = .success("Prompt preview generated.")
     }
 
     func copyLastCreatedSummary() {
@@ -1178,6 +1482,73 @@ final class AppViewModel: ObservableObject {
         availablePromptPack.first(where: { $0.kind == kind })
     }
 
+    private func clearPromptPreview() {
+        promptPackPreviewText = ""
+    }
+
+    private func promptPreviewOrGeneratedText() -> String? {
+        if hasPromptPreview {
+            return promptPackPreviewText
+        }
+
+        return generatedPromptPreviewText()
+    }
+
+    private func generatedPromptPreviewText() -> String? {
+        guard
+            let activeProjectURL,
+            let activeProjectTemplate,
+            prompt(for: selectedPromptKind) != nil
+        else {
+            return nil
+        }
+
+        let sections = codexPromptPackService.promptSections(
+            for: selectedPromptKind,
+            projectURL: activeProjectURL,
+            template: activeProjectTemplate,
+            workflowSettings: workflowSettingsForProject(activeProjectURL, template: activeProjectTemplate)
+        )
+        .filter { includedPromptSections.contains($0.kind) }
+
+        let body = sections.map(\.body).joined(separator: "\n\n")
+
+        guard let promptHeader = selectedPromptMode.promptHeader else {
+            return body
+        }
+
+        return "\(promptHeader)\n\n\(body)"
+    }
+
+    private var includedPromptSections: Set<CodexPromptSectionKind> {
+        var sections = Set<CodexPromptSectionKind>()
+
+        if includeProjectSummary {
+            sections.insert(.projectSummary)
+        }
+        if includeWorkflowFiles {
+            sections.insert(.workflowFiles)
+        }
+        if includeStarterContext {
+            sections.insert(.starterContext)
+        }
+        if includeNotesOrContext {
+            sections.insert(.notesOrContext)
+        }
+
+        return sections
+    }
+
+    private func logCreateProjectValidationIssues(prefix: String) {
+        guard !createProjectValidationIssues.isEmpty else {
+            return
+        }
+
+        for issue in createProjectValidationIssues {
+            log("\(prefix): \(issue)")
+        }
+    }
+
     private func skipReasonLike(_ messages: [String]) -> String? {
         messages.last(where: { $0.contains("skipped") || $0.contains("Skipping") })
     }
@@ -1241,6 +1612,14 @@ final class AppViewModel: ObservableObject {
     }
 
     private func buildHandoffBundleText() -> String? {
+        guard let input = buildHandoffBundleInput() else {
+            return nil
+        }
+
+        return handoffBundleService.buildBundle(from: input)
+    }
+
+    private func buildHandoffBundleInput() -> HandoffBundleInput? {
         guard let activeProjectURL else {
             return nil
         }
@@ -1261,7 +1640,7 @@ final class AppViewModel: ObservableObject {
         ].compactMap { $0 }
         let assetInventory = assetPromptContextService.inventorySummary(for: activeProjectURL)
 
-        let input = HandoffBundleInput(
+        return HandoffBundleInput(
             projectName: activeProjectName,
             projectPath: activeProjectURL.path,
             templateName: template?.rawValue ?? "Unknown",
@@ -1276,8 +1655,6 @@ final class AppViewModel: ObservableObject {
             starterPrompt: starterPrompt,
             nextSteps: handoffNextSteps(for: inspectedSummary, template: template)
         )
-
-        return handoffBundleService.buildBundle(from: input)
     }
 
     private func activeGitStatusDescription(from inspectedSummary: InspectedProjectSummary) -> String {

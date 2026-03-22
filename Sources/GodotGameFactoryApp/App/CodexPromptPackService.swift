@@ -1,5 +1,17 @@
 import Foundation
 
+enum CodexPromptSectionKind {
+    case projectSummary
+    case workflowFiles
+    case starterContext
+    case notesOrContext
+}
+
+struct CodexPromptSection {
+    let kind: CodexPromptSectionKind
+    let body: String
+}
+
 struct CodexPromptPackService {
     private let assetPromptContextService: AssetPromptContextService
 
@@ -49,38 +61,75 @@ struct CodexPromptPackService {
         template: ProjectTemplate,
         workflowSettings: ProjectWorkflowSettings?
     ) -> String {
+        promptSections(
+            for: kind,
+            projectURL: projectURL,
+            template: template,
+            workflowSettings: workflowSettings
+        )
+        .map(\.body)
+        .joined(separator: "\n\n")
+    }
+
+    func promptSections(
+        for kind: CodexPromptKind,
+        projectURL: URL,
+        template: ProjectTemplate,
+        workflowSettings: ProjectWorkflowSettings? = nil
+    ) -> [CodexPromptSection] {
         let agentsPath = projectURL.appendingPathComponent("AGENTS.md").path
         let validationTarget = workflowSettings?.effectiveValidationTarget(for: template) ??
             (ProjectTemplateSupport.validationTarget(for: template) ?? "no starter scene is configured yet")
         let templateContext = templateSpecificContext(for: kind, template: template)
         let assetSummary = assetPromptContextService.assetSummary(for: projectURL)
         let handoffNote = workflowSettings?.trimmedHandoffNote ?? ""
-        let handoffNoteSection = handoffNote.isEmpty ? nil : "Project handoff note: \(handoffNote)"
+        let handoffNoteSection = handoffNote.isEmpty ? nil : CodexPromptSection(
+            kind: .notesOrContext,
+            body: "Project handoff note: \(handoffNote)"
+        )
 
-        let sections = [
-            """
+        let sections: [CodexPromptSection?] = [
+            CodexPromptSection(
+                kind: .workflowFiles,
+                body: """
         Read [AGENTS.md](\(agentsPath)) first.
-
+        Validation entrypoint: `./run_validation.sh`.
+        """
+            ),
+            CodexPromptSection(
+                kind: .projectSummary,
+                body: """
         Work in the generated project at `\(projectURL.path)`.
         Selected template: `\(template.rawValue)`.
-        Validation entrypoint: `./run_validation.sh`.
+        """
+            ),
+            CodexPromptSection(
+                kind: .starterContext,
+                body: """
         Starter validation target: `\(validationTarget)`.
         \(assetSummary)
-        """,
+        """
+            ),
             handoffNoteSection,
-            """
-
+            CodexPromptSection(
+                kind: .notesOrContext,
+                body: """
         Inspect the scaffold before editing.
         Make small changes only.
         Avoid renaming or moving files unless necessary.
         Validate after changes with `./run_validation.sh`.
-
+        """
+            ),
+            CodexPromptSection(
+                kind: .starterContext,
+                body: """
         Task:
         \(templateContext)
         """
+            )
         ]
 
-        return sections.compactMap { $0 }.joined(separator: "\n\n")
+        return sections.compactMap { $0 }
     }
 
     private func templateSpecificContext(for kind: CodexPromptKind, template: ProjectTemplate) -> String {
