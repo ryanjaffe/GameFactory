@@ -155,6 +155,7 @@ enum ProjectRecommendationSubsectionTarget: Hashable {
 }
 
 enum ProjectRecommendationActionKind {
+    case revealActiveProjectInFinder
     case runValidation
     case generatePromptPreview
     case generateHandoffPreview
@@ -164,6 +165,8 @@ enum ProjectRecommendationActionKind {
 
     var buttonTitle: String {
         switch self {
+        case .revealActiveProjectInFinder:
+            return "Reveal"
         case .runValidation:
             return "Run"
         case .generatePromptPreview:
@@ -799,6 +802,16 @@ final class AppViewModel: ObservableObject {
         }
 
         var recommendations: [ProjectRecommendation] = []
+
+        recommendations.append(
+            ProjectRecommendation(
+                title: "Reveal project in Finder",
+                detail: "Open the active project folder in Finder.",
+                targetSection: nil,
+                targetSubsection: nil,
+                actionKind: .revealActiveProjectInFinder
+            )
+        )
 
         let missingWorkflowFiles = missingWorkflowFileKinds.map(\.fileName)
         if !missingWorkflowFiles.isEmpty {

@@ -146,6 +146,8 @@ struct MainView: View {
 
     private func performRecommendationAction(_ actionKind: ProjectRecommendationActionKind) {
         switch actionKind {
+        case .revealActiveProjectInFinder:
+            viewModel.revealActiveProjectInFinder()
         case .runValidation:
             viewModel.runValidationForActiveProject()
         case .generatePromptPreview:
