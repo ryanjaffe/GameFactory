@@ -122,6 +122,15 @@ struct HandoffBundlePreviewItem: Identifiable {
     var id: String { title }
 }
 
+struct ProjectReadinessItem: Identifiable {
+    let title: String
+    let status: String
+    let detail: String
+    let isReady: Bool
+
+    var id: String { title }
+}
+
 struct HandoffBundleModeConfiguration {
     let includeProjectSessionNotes: Bool
     let includeRecentActivity: Bool
@@ -644,6 +653,103 @@ final class AppViewModel: ObservableObject {
 
     var hasWorkflowFileTarget: Bool {
         workflowFileTargetProjectURL != nil
+    }
+
+    var hasWorkflowFilesReady: Bool {
+        guard let activeProjectURL else {
+            return false
+        }
+
+        return WorkflowFileKind.allCases.allSatisfy { kind in
+            FileManager.default.fileExists(atPath: workflowFileService.fileURL(for: kind, projectURL: activeProjectURL).path)
+        }
+    }
+
+    var hasValidationResultReady: Bool {
+        validationLastSucceeded != nil
+    }
+
+    var hasPromptContextReady: Bool {
+        guard hasPromptPack else {
+            return false
+        }
+
+        return hasProjectSessionNotesContext || hasValidationResultReady || lastAssetImport != nil
+    }
+
+    var hasHandoffContextReady: Bool {
+        guard hasActiveProject else {
+            return false
+        }
+
+        return lastProjectAudit != nil || hasProjectSessionNotesContext || hasValidationResultReady || lastAssetImport != nil
+    }
+
+    var projectReadinessItems: [ProjectReadinessItem] {
+        guard let activeProjectURL else {
+            return []
+        }
+
+        let missingWorkflowFiles = WorkflowFileKind.allCases
+            .filter { !FileManager.default.fileExists(atPath: workflowFileService.fileURL(for: $0, projectURL: activeProjectURL).path) }
+            .map(\.fileName)
+
+        let workflowFilesDetail = missingWorkflowFiles.isEmpty
+            ? "AGENTS.md, README.md, and run_validation.sh are present."
+            : "Missing: \(missingWorkflowFiles.joined(separator: ", "))"
+
+        let validationDetail: String
+        if validationIsRunning {
+            validationDetail = "Validation is running right now."
+        } else if let validationLastRunDate {
+            let resultText = validationLastSucceeded == true ? "passed" : "failed"
+            validationDetail = "Latest run \(resultText) on \(validationLastRunDate.formatted(date: .abbreviated, time: .shortened))."
+        } else {
+            validationDetail = "run_validation.sh has not been run from the app yet."
+        }
+
+        let promptContextDetail: String
+        if !hasPromptPack {
+            promptContextDetail = "No active-project prompt pack is available."
+        } else if hasPromptContextReady {
+            promptContextDetail = promptContextSources.joined(separator: " • ")
+        } else {
+            promptContextDetail = "Base prompt pack is available, but notes, validation, and import context are still limited."
+        }
+
+        let handoffContextDetail: String
+        if hasHandoffContextReady {
+            handoffContextDetail = handoffContextSources.joined(separator: " • ")
+        } else {
+            handoffContextDetail = "Handoff is available, but audit, notes, validation, and import context are still limited."
+        }
+
+        return [
+            ProjectReadinessItem(
+                title: "Workflow Files",
+                status: hasWorkflowFilesReady ? "Ready" : "Missing",
+                detail: workflowFilesDetail,
+                isReady: hasWorkflowFilesReady
+            ),
+            ProjectReadinessItem(
+                title: "Validation",
+                status: hasValidationResultReady ? "Ready" : (validationIsRunning ? "Running" : "Not run yet"),
+                detail: validationDetail,
+                isReady: hasValidationResultReady
+            ),
+            ProjectReadinessItem(
+                title: "Prompt Context",
+                status: hasPromptContextReady ? "Ready" : (hasPromptPack ? "Limited" : "Missing"),
+                detail: promptContextDetail,
+                isReady: hasPromptContextReady
+            ),
+            ProjectReadinessItem(
+                title: "Handoff Context",
+                status: hasHandoffContextReady ? "Ready" : "Limited",
+                detail: handoffContextDetail,
+                isReady: hasHandoffContextReady
+            ),
+        ]
     }
 
     var hasHandoffBundlePreview: Bool {
@@ -2319,6 +2425,53 @@ final class AppViewModel: ObservableObject {
 
         let lines = recentMessages.map { "- \($0)" }.joined(separator: "\n")
         return "Recent Activity\n\(lines)"
+    }
+
+    private var hasProjectSessionNotesContext: Bool {
+        !projectSessionNotesText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var promptContextSources: [String] {
+        var sources: [String] = []
+
+        if hasProjectSessionNotesContext {
+            sources.append("Project session notes are available.")
+        }
+        if hasValidationResultReady {
+            sources.append("A validation result is available.")
+        }
+        if lastAssetImport != nil {
+            sources.append("Recent asset import context is available.")
+        }
+
+        if sources.isEmpty {
+            sources.append("Base prompt pack is available.")
+        }
+
+        return sources
+    }
+
+    private var handoffContextSources: [String] {
+        var sources: [String] = []
+
+        if lastProjectAudit != nil {
+            sources.append("Recent audit is available.")
+        }
+        if hasProjectSessionNotesContext {
+            sources.append("Project session notes are available.")
+        }
+        if hasValidationResultReady {
+            sources.append("A validation result is available.")
+        }
+        if lastAssetImport != nil {
+            sources.append("Recent asset import context is available.")
+        }
+
+        if sources.isEmpty {
+            sources.append("Base handoff bundle context is available.")
+        }
+
+        return sources
     }
 
     private var validationResultContextText: String? {
