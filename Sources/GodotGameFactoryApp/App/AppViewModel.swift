@@ -159,6 +159,8 @@ enum ProjectRecommendationActionKind {
     case generatePromptPreview
     case generateHandoffPreview
     case generateWorkflowFiles
+    case copyPromptPreview
+    case copyHandoffPreview
 
     var buttonTitle: String {
         switch self {
@@ -170,6 +172,10 @@ enum ProjectRecommendationActionKind {
             return "Generate"
         case .generateWorkflowFiles:
             return "Generate"
+        case .copyPromptPreview:
+            return "Copy"
+        case .copyHandoffPreview:
+            return "Copy"
         }
     }
 }
@@ -843,6 +849,18 @@ final class AppViewModel: ObservableObject {
             )
         }
 
+        if hasPromptPreview {
+            recommendations.append(
+                ProjectRecommendation(
+                    title: "Copy prompt preview",
+                    detail: "A prompt preview is ready to copy.",
+                    targetSection: nil,
+                    targetSubsection: nil,
+                    actionKind: .copyPromptPreview
+                )
+            )
+        }
+
         if hasHandoffContextReady && !hasHandoffBundlePreview {
             recommendations.append(
                 ProjectRecommendation(
@@ -851,6 +869,18 @@ final class AppViewModel: ObservableObject {
                     targetSection: .settings,
                     targetSubsection: .handoffBundle,
                     actionKind: .generateHandoffPreview
+                )
+            )
+        }
+
+        if hasHandoffBundlePreview {
+            recommendations.append(
+                ProjectRecommendation(
+                    title: "Copy handoff preview",
+                    detail: "A handoff preview is ready to copy.",
+                    targetSection: nil,
+                    targetSubsection: nil,
+                    actionKind: .copyHandoffPreview
                 )
             )
         }

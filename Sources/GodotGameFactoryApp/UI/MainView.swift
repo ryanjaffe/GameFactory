@@ -154,6 +154,10 @@ struct MainView: View {
             viewModel.generateHandoffBundlePreview()
         case .generateWorkflowFiles:
             viewModel.generateMissingWorkflowFilesForActiveProject()
+        case .copyPromptPreview:
+            viewModel.copySelectedPrompt()
+        case .copyHandoffPreview:
+            viewModel.copyHandoffBundle()
         }
     }
 }
