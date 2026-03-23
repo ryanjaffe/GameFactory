@@ -156,6 +156,7 @@ enum ProjectRecommendationSubsectionTarget: Hashable {
 
 enum ProjectRecommendationActionKind {
     case revealActiveProjectInFinder
+    case saveProjectSessionNotes
     case runValidation
     case generatePromptPreview
     case generateHandoffPreview
@@ -167,6 +168,8 @@ enum ProjectRecommendationActionKind {
         switch self {
         case .revealActiveProjectInFinder:
             return "Reveal"
+        case .saveProjectSessionNotes:
+            return "Save"
         case .runValidation:
             return "Run"
         case .generatePromptPreview:
@@ -461,6 +464,7 @@ final class AppViewModel: ObservableObject {
     private var hasFinishedInitializing = false
     private var hasLoggedSaveFailure = false
     private var hasSavedSettings = false
+    private var lastSavedProjectSessionNotesText = ""
     private var workflowEditorOriginalText = ""
     private var workflowSettingsOriginal = ProjectWorkflowSettings.defaults(for: nil)
     private var workflowSettingsLoadedProjectURL: URL?
@@ -715,6 +719,10 @@ final class AppViewModel: ObservableObject {
         validationLastSucceeded != nil
     }
 
+    var hasUnsavedProjectSessionNotes: Bool {
+        projectSessionNotesText != lastSavedProjectSessionNotesText
+    }
+
     var hasPromptContextReady: Bool {
         guard hasPromptPack else {
             return false
@@ -846,6 +854,18 @@ final class AppViewModel: ObservableObject {
                     targetSection: .newProject,
                     targetSubsection: .projectSessionNotes,
                     actionKind: nil
+                )
+            )
+        }
+
+        if hasUnsavedProjectSessionNotes && hasProjectSessionNotesContext {
+            recommendations.append(
+                ProjectRecommendation(
+                    title: "Save project notes",
+                    detail: "Project session notes have unsaved changes.",
+                    targetSection: nil,
+                    targetSubsection: nil,
+                    actionKind: .saveProjectSessionNotes
                 )
             )
         }
@@ -1479,6 +1499,7 @@ final class AppViewModel: ObservableObject {
             return
         }
 
+        lastSavedProjectSessionNotesText = projectSessionNotesText
         log("Saved project session notes for \(activeProjectName).")
         promptPackStatus = .success("Saved project notes.")
     }
@@ -1497,6 +1518,7 @@ final class AppViewModel: ObservableObject {
         }
 
         projectSessionNotesText = ""
+        lastSavedProjectSessionNotesText = ""
         log("Cleared project session notes for \(activeProjectName).")
         promptPackStatus = .success("Cleared project notes.")
     }
@@ -2616,10 +2638,13 @@ final class AppViewModel: ObservableObject {
     private func loadProjectSessionNotesForActiveProject() {
         guard let activeProjectURL else {
             projectSessionNotesText = ""
+            lastSavedProjectSessionNotesText = ""
             return
         }
 
-        projectSessionNotesText = projectSessionNotesStore.loadNote(for: activeProjectURL.path)
+        let loadedNotes = projectSessionNotesStore.loadNote(for: activeProjectURL.path)
+        projectSessionNotesText = loadedNotes
+        lastSavedProjectSessionNotesText = loadedNotes
     }
 
     private var recentActivityContextText: String? {

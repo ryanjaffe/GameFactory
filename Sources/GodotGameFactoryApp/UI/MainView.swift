@@ -148,6 +148,8 @@ struct MainView: View {
         switch actionKind {
         case .revealActiveProjectInFinder:
             viewModel.revealActiveProjectInFinder()
+        case .saveProjectSessionNotes:
+            viewModel.saveProjectSessionNotesForActiveProject()
         case .runValidation:
             viewModel.runValidationForActiveProject()
         case .generatePromptPreview:
