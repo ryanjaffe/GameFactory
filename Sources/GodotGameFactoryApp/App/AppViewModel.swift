@@ -604,6 +604,44 @@ final class AppViewModel: ObservableObject {
         !promptPackPreviewText.isEmpty
     }
 
+    var previewCharacterCount: Int {
+        promptPackPreviewText.count
+    }
+
+    var previewLineCount: Int {
+        guard hasPromptPreview else {
+            return 0
+        }
+
+        return promptPackPreviewText.components(separatedBy: .newlines).count
+    }
+
+    var previewWordCount: Int {
+        guard hasPromptPreview else {
+            return 0
+        }
+
+        return promptPackPreviewText
+            .split { $0.isWhitespace || $0.isNewline }
+            .count
+    }
+
+    var promptPreviewSizeWarning: String? {
+        guard hasPromptPreview else {
+            return nil
+        }
+
+        if previewCharacterCount >= 8000 {
+            return "Very large prompt preview."
+        }
+
+        if previewCharacterCount >= 4000 {
+            return "Large prompt preview."
+        }
+
+        return nil
+    }
+
     init(
         settingsStore: AppSettingsStore = AppSettingsStore(),
         presetStore: ProjectPresetStore = ProjectPresetStore(),

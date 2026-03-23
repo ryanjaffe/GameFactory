@@ -9,6 +9,8 @@ struct SavedPromptPreset: Identifiable, Equatable, Codable {
     let includeWorkflowFiles: Bool
     let includeStarterContext: Bool
     let includeNotesOrContext: Bool
+    let includeRecentActivityContext: Bool?
+    let recentActivityContextLimit: Int?
 
     init(
         id: String = UUID().uuidString,
@@ -18,7 +20,9 @@ struct SavedPromptPreset: Identifiable, Equatable, Codable {
         includeProjectSummary: Bool,
         includeWorkflowFiles: Bool,
         includeStarterContext: Bool,
-        includeNotesOrContext: Bool
+        includeNotesOrContext: Bool,
+        includeRecentActivityContext: Bool? = nil,
+        recentActivityContextLimit: Int? = nil
     ) {
         self.id = id
         self.name = name
@@ -28,6 +32,8 @@ struct SavedPromptPreset: Identifiable, Equatable, Codable {
         self.includeWorkflowFiles = includeWorkflowFiles
         self.includeStarterContext = includeStarterContext
         self.includeNotesOrContext = includeNotesOrContext
+        self.includeRecentActivityContext = includeRecentActivityContext
+        self.recentActivityContextLimit = recentActivityContextLimit
     }
 
     var configuration: PromptPackPresetConfiguration {
