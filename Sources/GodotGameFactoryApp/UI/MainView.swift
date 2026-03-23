@@ -764,6 +764,7 @@ private struct PromptPackView: View {
 
                     VStack(alignment: .leading, spacing: 8) {
                         Toggle("Include Recent Activity", isOn: $viewModel.includeRecentActivityContext)
+                        Toggle("Include Validation Result", isOn: $viewModel.includeValidationResultInPrompt)
 
                         if viewModel.includeRecentActivityContext {
                             Stepper(

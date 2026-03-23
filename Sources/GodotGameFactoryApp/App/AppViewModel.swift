@@ -1895,6 +1895,7 @@ final class AppViewModel: ObservableObject {
             includeNotesOrContext: includeNotesOrContext,
             includeProjectSessionNotes: includeProjectSessionNotes,
             includeRecentActivityContext: includeRecentActivityContext,
+            includeValidationResultInPrompt: includeValidationResultInPrompt,
             recentActivityContextLimit: recentActivityContextLimit
         )
 
@@ -1926,6 +1927,9 @@ final class AppViewModel: ObservableObject {
         }
         if let includeRecentActivityContext = preset.includeRecentActivityContext {
             self.includeRecentActivityContext = includeRecentActivityContext
+        }
+        if let includeValidationResultInPrompt = preset.includeValidationResultInPrompt {
+            self.includeValidationResultInPrompt = includeValidationResultInPrompt
         }
         if let recentActivityContextLimit = preset.recentActivityContextLimit {
             self.recentActivityContextLimit = recentActivityContextLimit
@@ -2335,6 +2339,7 @@ final class AppViewModel: ObservableObject {
                     includeNotesOrContext: preset.includeNotesOrContext,
                     includeProjectSessionNotes: preset.includeProjectSessionNotes,
                     includeRecentActivityContext: preset.includeRecentActivityContext,
+                    includeValidationResultInPrompt: preset.includeValidationResultInPrompt ?? existingPreset.includeValidationResultInPrompt,
                     recentActivityContextLimit: preset.recentActivityContextLimit
                 )
             } else {
@@ -2349,6 +2354,7 @@ final class AppViewModel: ObservableObject {
                     includeNotesOrContext: preset.includeNotesOrContext,
                     includeProjectSessionNotes: preset.includeProjectSessionNotes,
                     includeRecentActivityContext: preset.includeRecentActivityContext,
+                    includeValidationResultInPrompt: preset.includeValidationResultInPrompt,
                     recentActivityContextLimit: preset.recentActivityContextLimit
                 )
             }
