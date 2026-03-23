@@ -157,12 +157,15 @@ enum ProjectRecommendationSubsectionTarget: Hashable {
 enum ProjectRecommendationActionKind {
     case runValidation
     case generatePromptPreview
+    case generateHandoffPreview
 
     var buttonTitle: String {
         switch self {
         case .runValidation:
             return "Run"
         case .generatePromptPreview:
+            return "Generate"
+        case .generateHandoffPreview:
             return "Generate"
         }
     }
@@ -843,6 +846,18 @@ final class AppViewModel: ObservableObject {
                     targetSection: .newProject,
                     targetSubsection: .promptPack,
                     actionKind: .generatePromptPreview
+                )
+            )
+        }
+
+        if hasHandoffContextReady && !hasHandoffBundlePreview {
+            recommendations.append(
+                ProjectRecommendation(
+                    title: "Generate a handoff preview",
+                    detail: "Handoff context is ready to preview and copy.",
+                    targetSection: .settings,
+                    targetSubsection: .handoffBundle,
+                    actionKind: .generateHandoffPreview
                 )
             )
         }

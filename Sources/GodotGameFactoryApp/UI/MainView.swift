@@ -150,6 +150,8 @@ struct MainView: View {
             viewModel.runValidationForActiveProject()
         case .generatePromptPreview:
             viewModel.generatePromptPreview()
+        case .generateHandoffPreview:
+            viewModel.generateHandoffBundlePreview()
         }
     }
 }
