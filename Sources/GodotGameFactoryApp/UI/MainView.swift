@@ -88,7 +88,17 @@ struct MainView: View {
                         CodexHandoffStatusView(viewModel: viewModel)
                         RecentProjectsView(viewModel: viewModel)
                     case .settings:
-                        SettingsActiveProjectView(viewModel: viewModel)
+                        SettingsActiveProjectView(
+                            viewModel: viewModel,
+                            openRecommendationTarget: { target in
+                                switch target {
+                                case .newProject:
+                                    selectedSection = .newProject
+                                case .settings:
+                                    selectedSection = .settings
+                                }
+                            }
+                        )
                         ProjectInspectorView(viewModel: viewModel)
                         ProjectAuditView(viewModel: viewModel)
                         AssetImportView(viewModel: viewModel)
@@ -1328,6 +1338,7 @@ private struct EmptyStateText: View {
 
 private struct SettingsActiveProjectView: View {
     @ObservedObject var viewModel: AppViewModel
+    let openRecommendationTarget: (ProjectRecommendationTargetSection) -> Void
 
     var body: some View {
         GroupBox("Current Project") {
@@ -1379,11 +1390,21 @@ private struct SettingsActiveProjectView: View {
                                 .fontWeight(.medium)
 
                             ForEach(viewModel.projectRecommendations) { recommendation in
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(recommendation.title)
-                                        .fontWeight(.medium)
-                                    Text(recommendation.detail)
-                                        .foregroundStyle(.secondary)
+                                HStack(alignment: .top, spacing: 12) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(recommendation.title)
+                                            .fontWeight(.medium)
+                                        Text(recommendation.detail)
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    Spacer(minLength: 0)
+
+                                    if let targetSection = recommendation.targetSection {
+                                        Button("Open") {
+                                            openRecommendationTarget(targetSection)
+                                        }
+                                    }
                                 }
                             }
                         }

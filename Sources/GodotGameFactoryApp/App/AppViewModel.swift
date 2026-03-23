@@ -134,8 +134,14 @@ struct ProjectReadinessItem: Identifiable {
 struct ProjectRecommendation: Identifiable {
     let title: String
     let detail: String
+    let targetSection: ProjectRecommendationTargetSection?
 
     var id: String { title }
+}
+
+enum ProjectRecommendationTargetSection {
+    case newProject
+    case settings
 }
 
 struct HandoffBundleModeConfiguration {
@@ -773,7 +779,8 @@ final class AppViewModel: ObservableObject {
             recommendations.append(
                 ProjectRecommendation(
                     title: "Generate workflow files",
-                    detail: "\(missingWorkflowFiles.joined(separator: ", ")) \(missingWorkflowFiles.count == 1 ? "is" : "are") missing."
+                    detail: "\(missingWorkflowFiles.joined(separator: ", ")) \(missingWorkflowFiles.count == 1 ? "is" : "are") missing.",
+                    targetSection: .settings
                 )
             )
         }
@@ -782,7 +789,8 @@ final class AppViewModel: ObservableObject {
             recommendations.append(
                 ProjectRecommendation(
                     title: "Run validation",
-                    detail: "Validation has not been run from the app yet."
+                    detail: "Validation has not been run from the app yet.",
+                    targetSection: .settings
                 )
             )
         }
@@ -791,7 +799,8 @@ final class AppViewModel: ObservableObject {
             recommendations.append(
                 ProjectRecommendation(
                     title: "Add project notes",
-                    detail: "Prompt and handoff context are still limited without project session notes."
+                    detail: "Prompt and handoff context are still limited without project session notes.",
+                    targetSection: .newProject
                 )
             )
         }
@@ -800,7 +809,8 @@ final class AppViewModel: ObservableObject {
             recommendations.append(
                 ProjectRecommendation(
                     title: "Generate a prompt preview",
-                    detail: "Prompt context is ready to preview and copy."
+                    detail: "Prompt context is ready to preview and copy.",
+                    targetSection: .newProject
                 )
             )
         }
@@ -809,7 +819,8 @@ final class AppViewModel: ObservableObject {
             recommendations.append(
                 ProjectRecommendation(
                     title: "Strengthen handoff context",
-                    detail: "Run an audit, validation, or add notes before copying a handoff bundle."
+                    detail: "Run an audit, validation, or add notes before copying a handoff bundle.",
+                    targetSection: .settings
                 )
             )
         }
