@@ -1027,6 +1027,42 @@ private struct WorkflowFilesView: View {
                         InlineStatusMessageView(status: status)
                     }
 
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Validation Center")
+                            .fontWeight(.medium)
+
+                        HStack {
+                            Button(viewModel.validationIsRunning ? "Running Validation..." : "Run Validation") {
+                                viewModel.runValidationForActiveProject()
+                            }
+                            .disabled(viewModel.validationIsRunning)
+
+                            Text("Latest Result: \(viewModel.validationResultSummary)")
+                                .foregroundStyle(.secondary)
+
+                            if let validationLastRunDate = viewModel.validationLastRunDate {
+                                Text("Last Run: \(validationLastRunDate.formatted(date: .abbreviated, time: .shortened))")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        if let status = viewModel.validationStatus {
+                            InlineStatusMessageView(status: status)
+                        }
+
+                        ScrollView {
+                            if viewModel.hasValidationOutput {
+                                Text(viewModel.validationOutputText)
+                                    .textSelection(.enabled)
+                                    .font(.system(.callout, design: .monospaced))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            } else {
+                                EmptyStateText("No validation output yet. Run the active project's `run_validation.sh` script to inspect the latest result here.")
+                            }
+                        }
+                        .frame(minHeight: 160)
+                    }
+
                     if let selectedWorkflowFile = viewModel.selectedWorkflowFile {
                         VStack(alignment: .leading, spacing: 10) {
                             Text(selectedWorkflowFile.fileName)

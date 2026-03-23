@@ -299,6 +299,10 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var workflowFileNotFound = false
     @Published private(set) var workflowFileHasUnsavedChanges = false
     @Published private(set) var pendingWorkflowFileRepairConfirmation: WorkflowFileKind?
+    @Published private(set) var validationIsRunning = false
+    @Published private(set) var validationLastSucceeded: Bool?
+    @Published private(set) var validationLastRunDate: Date?
+    @Published private(set) var validationOutputText = ""
     @Published var workflowSettingsValidationTarget = "" {
         didSet { updateWorkflowSettingsDirtyStateIfNeeded() }
     }
@@ -321,6 +325,7 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var handoffBundleStatus: UIStatusMessage?
     @Published private(set) var assetImportStatus: UIStatusMessage?
     @Published private(set) var workflowFileStatus: UIStatusMessage?
+    @Published private(set) var validationStatus: UIStatusMessage?
     @Published private(set) var activeProjectStatus: UIStatusMessage?
 
     private let logger: AppLogger
@@ -350,6 +355,7 @@ final class AppViewModel: ObservableObject {
     private let handoffBundleService: HandoffBundleService
     private let workflowFileService: WorkflowFileService
     private let workflowFileRepairService: WorkflowFileRepairService
+    private let validationRunnerService: ValidationRunnerService
     private let workflowSettingsService: ProjectWorkflowSettingsService
     private let promptPresetTransferService: PromptPresetTransferService
     private let handoffPresetTransferService: HandoffPresetTransferService
@@ -657,6 +663,22 @@ final class AppViewModel: ObservableObject {
         pendingWorkflowFileRepairConfirmation?.fileName
     }
 
+    var validationResultSummary: String {
+        if validationIsRunning {
+            return "Running..."
+        }
+
+        guard let validationLastSucceeded else {
+            return "Not run yet"
+        }
+
+        return validationLastSucceeded ? "Passed" : "Failed"
+    }
+
+    var hasValidationOutput: Bool {
+        !validationOutputText.isEmpty
+    }
+
     var hasOpenedWorkflowFile: Bool {
         selectedWorkflowFile != nil
     }
@@ -807,6 +829,7 @@ final class AppViewModel: ObservableObject {
         handoffBundleService: HandoffBundleService = HandoffBundleService(),
         workflowFileService: WorkflowFileService = WorkflowFileService(),
         workflowFileRepairService: WorkflowFileRepairService = WorkflowFileRepairService(),
+        validationRunnerService: ValidationRunnerService = ValidationRunnerService(),
         workflowSettingsService: ProjectWorkflowSettingsService = ProjectWorkflowSettingsService(),
         promptPresetTransferService: PromptPresetTransferService = PromptPresetTransferService(),
         handoffPresetTransferService: HandoffPresetTransferService = HandoffPresetTransferService()
@@ -838,6 +861,7 @@ final class AppViewModel: ObservableObject {
         self.handoffBundleService = handoffBundleService
         self.workflowFileService = workflowFileService
         self.workflowFileRepairService = workflowFileRepairService
+        self.validationRunnerService = validationRunnerService
         self.workflowSettingsService = workflowSettingsService
         self.promptPresetTransferService = promptPresetTransferService
         self.handoffPresetTransferService = handoffPresetTransferService
@@ -908,6 +932,7 @@ final class AppViewModel: ObservableObject {
             clearWorkflowEditor()
             clearProjectAudit()
             clearAssetImport()
+            clearValidationResult()
             clearHandoffBundlePreview()
             loadWorkflowSettings(for: result.finalProjectURL, template: settings.template)
             loadProjectSessionNotesForActiveProject()
@@ -1051,6 +1076,7 @@ final class AppViewModel: ObservableObject {
         inspectedProjectSummary = summary
         clearProjectAudit()
         clearAssetImport()
+        clearValidationResult()
         clearHandoffBundlePreview()
         loadWorkflowSettings(for: selectedProjectURL, template: summary.detectedTemplate)
         loadProjectSessionNotesForActiveProject()
@@ -1087,6 +1113,7 @@ final class AppViewModel: ObservableObject {
         clearWorkflowEditor()
         clearProjectAudit()
         clearAssetImport()
+        clearValidationResult()
         clearHandoffBundlePreview()
         loadWorkflowSettings(for: project.projectURL, template: project.template)
         loadProjectSessionNotesForActiveProject()
@@ -1115,6 +1142,7 @@ final class AppViewModel: ObservableObject {
         clearWorkflowEditor()
         clearProjectAudit()
         clearAssetImport()
+        clearValidationResult()
         clearHandoffBundlePreview()
         loadWorkflowSettings(for: inspectedProjectSummary.projectURL, template: inspectedProjectSummary.detectedTemplate)
         loadProjectSessionNotesForActiveProject()
@@ -1558,6 +1586,60 @@ final class AppViewModel: ObservableObject {
         pendingWorkflowFileRepairConfirmation = nil
         workflowFileStatus = nil
         log("Workflow file restore canceled.")
+    }
+
+    func runValidationForActiveProject() {
+        guard !validationIsRunning else {
+            return
+        }
+
+        guard let activeProjectURL else {
+            log("Validation skipped: no project is selected.")
+            validationStatus = .error("No active project is available for validation.")
+            return
+        }
+
+        let scriptURL = workflowFileService.fileURL(for: .validation, projectURL: activeProjectURL)
+        guard FileManager.default.fileExists(atPath: scriptURL.path) else {
+            log("Validation skipped: run_validation.sh is missing for \(activeProjectName).")
+            validationOutputText = ""
+            validationStatus = .error("run_validation.sh not found.")
+            return
+        }
+
+        validationIsRunning = true
+        validationStatus = nil
+        validationOutputText = ""
+        log("Validation started for \(activeProjectName).")
+        let validationRunnerService = self.validationRunnerService
+
+        Task {
+            do {
+                let result = try await Task.detached(priority: .userInitiated) {
+                    try validationRunnerService.runValidationScript(at: scriptURL, currentDirectoryURL: activeProjectURL)
+                }.value
+
+                validationIsRunning = false
+                validationLastSucceeded = result.succeeded
+                validationLastRunDate = Date()
+                validationOutputText = result.combinedOutput
+
+                if result.succeeded {
+                    log("Validation passed for \(activeProjectName).")
+                    validationStatus = .success("Validation passed.")
+                } else {
+                    log("Validation failed for \(activeProjectName) with exit code \(result.exitCode).")
+                    validationStatus = .error("Validation failed.")
+                }
+            } catch {
+                validationIsRunning = false
+                validationLastSucceeded = false
+                validationLastRunDate = Date()
+                validationOutputText = error.localizedDescription
+                log("Validation could not be started: \(error.localizedDescription)")
+                validationStatus = .error("Validation could not be started. \(error.localizedDescription)")
+            }
+        }
     }
 
     func saveWorkflowSettings() {
@@ -2337,6 +2419,7 @@ final class AppViewModel: ObservableObject {
         selectedWorkflowProjectURL = nil
         selectedWorkflowProjectName = nil
         selectedWorkflowProjectTemplate = nil
+        clearValidationResult()
         clearHandoffBundlePreview()
     }
 
@@ -2346,6 +2429,14 @@ final class AppViewModel: ObservableObject {
 
     private func clearAssetImport() {
         lastAssetImport = nil
+    }
+
+    private func clearValidationResult() {
+        validationIsRunning = false
+        validationLastSucceeded = nil
+        validationLastRunDate = nil
+        validationOutputText = ""
+        validationStatus = nil
     }
 
     private func clearHandoffBundlePreview() {
