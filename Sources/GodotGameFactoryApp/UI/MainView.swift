@@ -150,6 +150,10 @@ struct MainView: View {
             viewModel.revealActiveProjectInFinder()
         case .saveProjectSessionNotes:
             viewModel.saveProjectSessionNotesForActiveProject()
+        case .enableProjectNotesInPrompt:
+            viewModel.includeProjectSessionNotes = true
+        case .enableProjectNotesInHandoff:
+            viewModel.includeProjectSessionNotesInHandoff = true
         case .runValidation:
             viewModel.runValidationForActiveProject()
         case .generatePromptPreview:

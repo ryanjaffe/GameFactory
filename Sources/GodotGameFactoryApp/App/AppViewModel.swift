@@ -157,6 +157,8 @@ enum ProjectRecommendationSubsectionTarget: Hashable {
 enum ProjectRecommendationActionKind {
     case revealActiveProjectInFinder
     case saveProjectSessionNotes
+    case enableProjectNotesInPrompt
+    case enableProjectNotesInHandoff
     case runValidation
     case generatePromptPreview
     case generateHandoffPreview
@@ -170,6 +172,10 @@ enum ProjectRecommendationActionKind {
             return "Reveal"
         case .saveProjectSessionNotes:
             return "Save"
+        case .enableProjectNotesInPrompt:
+            return "Enable"
+        case .enableProjectNotesInHandoff:
+            return "Enable"
         case .runValidation:
             return "Run"
         case .generatePromptPreview:
@@ -870,6 +876,18 @@ final class AppViewModel: ObservableObject {
             )
         }
 
+        if hasProjectSessionNotesContext && !includeProjectSessionNotes {
+            recommendations.append(
+                ProjectRecommendation(
+                    title: "Include project notes in prompt",
+                    detail: "Saved project notes are available but not included in prompt output.",
+                    targetSection: nil,
+                    targetSubsection: nil,
+                    actionKind: .enableProjectNotesInPrompt
+                )
+            )
+        }
+
         if hasPromptPack && !hasPromptPreview && hasPromptContextReady {
             recommendations.append(
                 ProjectRecommendation(
@@ -914,6 +932,18 @@ final class AppViewModel: ObservableObject {
                     targetSection: nil,
                     targetSubsection: nil,
                     actionKind: .copyHandoffPreview
+                )
+            )
+        }
+
+        if hasProjectSessionNotesContext && !includeProjectSessionNotesInHandoff {
+            recommendations.append(
+                ProjectRecommendation(
+                    title: "Include project notes in handoff",
+                    detail: "Saved project notes are available but not included in handoff output.",
+                    targetSection: nil,
+                    targetSubsection: nil,
+                    actionKind: .enableProjectNotesInHandoff
                 )
             )
         }
