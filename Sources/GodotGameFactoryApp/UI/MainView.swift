@@ -234,6 +234,7 @@ private struct HandoffBundleView: View {
 
                     Toggle("Include Project Session Notes", isOn: $viewModel.includeProjectSessionNotesInHandoff)
                     Toggle("Include Recent Activity", isOn: $viewModel.includeRecentActivityInHandoff)
+                    Toggle("Include Validation Result", isOn: $viewModel.includeValidationResultInHandoff)
 
                     if viewModel.includeRecentActivityInHandoff {
                         Stepper(

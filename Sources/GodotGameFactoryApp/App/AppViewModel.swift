@@ -236,6 +236,11 @@ final class AppViewModel: ObservableObject {
             clearHandoffBundlePreview()
         }
     }
+    @Published var includeValidationResultInHandoff = false {
+        didSet {
+            clearHandoffBundlePreview()
+        }
+    }
     @Published var recentActivityInHandoffLimit = 5 {
         didSet {
             let clampedValue = max(1, min(recentActivityInHandoffLimit, 10))
@@ -583,6 +588,9 @@ final class AppViewModel: ObservableObject {
         let recentActivityDetail = input.recentActivitySummaryText == nil
             ? "No recent activity will be included."
             : "Included from the latest \(recentActivityInHandoffLimit) log entr\(recentActivityInHandoffLimit == 1 ? "y" : "ies")."
+        let validationDetail = input.validationSummaryText == nil
+            ? "No validation result will be included."
+            : "Included from the latest in-memory validation run."
 
         return [
             HandoffBundlePreviewItem(title: "Summary", detail: "\(input.projectName) • \(input.templateName)"),
@@ -594,6 +602,7 @@ final class AppViewModel: ObservableObject {
             HandoffBundlePreviewItem(title: "Workflow Settings", detail: workflowSettingsDetail),
             HandoffBundlePreviewItem(title: "Project Session Notes", detail: projectSessionNotesDetail),
             HandoffBundlePreviewItem(title: "Recent Activity", detail: recentActivityDetail),
+            HandoffBundlePreviewItem(title: "Validation", detail: validationDetail),
             HandoffBundlePreviewItem(title: "Starter Prompt", detail: "Included from the active project's current prompt pack."),
             HandoffBundlePreviewItem(title: "Next Steps", detail: input.nextSteps.joined(separator: " • "))
         ]
@@ -1603,6 +1612,7 @@ final class AppViewModel: ObservableObject {
         guard FileManager.default.fileExists(atPath: scriptURL.path) else {
             log("Validation skipped: run_validation.sh is missing for \(activeProjectName).")
             validationOutputText = ""
+            clearHandoffBundlePreview()
             validationStatus = .error("run_validation.sh not found.")
             return
         }
@@ -1610,6 +1620,7 @@ final class AppViewModel: ObservableObject {
         validationIsRunning = true
         validationStatus = nil
         validationOutputText = ""
+        clearHandoffBundlePreview()
         log("Validation started for \(activeProjectName).")
         let validationRunnerService = self.validationRunnerService
 
@@ -1623,6 +1634,7 @@ final class AppViewModel: ObservableObject {
                 validationLastSucceeded = result.succeeded
                 validationLastRunDate = Date()
                 validationOutputText = result.combinedOutput
+                clearHandoffBundlePreview()
 
                 if result.succeeded {
                     log("Validation passed for \(activeProjectName).")
@@ -1636,6 +1648,7 @@ final class AppViewModel: ObservableObject {
                 validationLastSucceeded = false
                 validationLastRunDate = Date()
                 validationOutputText = error.localizedDescription
+                clearHandoffBundlePreview()
                 log("Validation could not be started: \(error.localizedDescription)")
                 validationStatus = .error("Validation could not be started. \(error.localizedDescription)")
             }
@@ -2437,6 +2450,7 @@ final class AppViewModel: ObservableObject {
         validationLastRunDate = nil
         validationOutputText = ""
         validationStatus = nil
+        clearHandoffBundlePreview()
     }
 
     private func clearHandoffBundlePreview() {
@@ -2511,6 +2525,7 @@ final class AppViewModel: ObservableObject {
             ? trimmedProjectSessionNotes
             : nil
         let includedRecentActivitySummaryText = recentActivitySummaryTextForHandoff
+        let includedValidationSummaryText = validationSummaryTextForHandoff
 
         return HandoffBundleInput(
             projectName: activeProjectName,
@@ -2526,6 +2541,7 @@ final class AppViewModel: ObservableObject {
             workflowSettingsSummaryText: workflowSettingsSummaryText(for: activeProjectURL, template: template),
             projectSessionNotesText: includedProjectSessionNotesText,
             recentActivitySummaryText: includedRecentActivitySummaryText,
+            validationSummaryText: includedValidationSummaryText,
             starterPrompt: starterPrompt,
             nextSteps: handoffNextSteps(for: inspectedSummary, template: template)
         )
@@ -2542,6 +2558,25 @@ final class AppViewModel: ObservableObject {
         }
 
         return recentMessages.map { "- \($0)" }.joined(separator: "\n")
+    }
+
+    private var validationSummaryTextForHandoff: String? {
+        guard includeValidationResultInHandoff, let validationLastSucceeded else {
+            return nil
+        }
+
+        let resultText = validationLastSucceeded ? "Passed" : "Failed"
+        let lastRunText = validationLastRunDate?.formatted(date: .abbreviated, time: .shortened) ?? "Unknown"
+        let trimmedOutput = validationOutputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let outputText = trimmedOutput.isEmpty ? "No output captured." : trimmedOutput
+
+        return """
+        Result: \(resultText)
+        Last Run: \(lastRunText)
+
+        Output:
+        \(outputText)
+        """
     }
 
     private func activeGitStatusDescription(from inspectedSummary: InspectedProjectSummary) -> String {
