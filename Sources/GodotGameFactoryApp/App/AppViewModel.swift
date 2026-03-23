@@ -122,6 +122,63 @@ struct HandoffBundlePreviewItem: Identifiable {
     var id: String { title }
 }
 
+struct HandoffBundleModeConfiguration {
+    let includeProjectSessionNotes: Bool
+    let includeRecentActivity: Bool
+    let recentActivityLimit: Int
+}
+
+enum HandoffBundleMode: String, CaseIterable, Identifiable {
+    case `default`
+    case aiHandoff
+    case developerSnapshot
+    case minimal
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .default:
+            return "Default"
+        case .aiHandoff:
+            return "AI Handoff"
+        case .developerSnapshot:
+            return "Developer Snapshot"
+        case .minimal:
+            return "Minimal"
+        }
+    }
+
+    var configuration: HandoffBundleModeConfiguration {
+        switch self {
+        case .default:
+            return HandoffBundleModeConfiguration(
+                includeProjectSessionNotes: true,
+                includeRecentActivity: false,
+                recentActivityLimit: 5
+            )
+        case .aiHandoff:
+            return HandoffBundleModeConfiguration(
+                includeProjectSessionNotes: true,
+                includeRecentActivity: true,
+                recentActivityLimit: 4
+            )
+        case .developerSnapshot:
+            return HandoffBundleModeConfiguration(
+                includeProjectSessionNotes: true,
+                includeRecentActivity: true,
+                recentActivityLimit: 7
+            )
+        case .minimal:
+            return HandoffBundleModeConfiguration(
+                includeProjectSessionNotes: false,
+                includeRecentActivity: false,
+                recentActivityLimit: 3
+            )
+        }
+    }
+}
+
 @MainActor
 final class AppViewModel: ObservableObject {
     @Published var settings: AppSettings {
@@ -157,6 +214,7 @@ final class AppViewModel: ObservableObject {
     @Published var includeProjectSessionNotes = false {
         didSet { clearPromptPreview() }
     }
+    @Published var selectedHandoffBundleMode: HandoffBundleMode = .default
     @Published var includeProjectSessionNotesInHandoff = false
     @Published var includeRecentActivityInHandoff = false
     @Published var recentActivityInHandoffLimit = 5 {
@@ -493,6 +551,7 @@ final class AppViewModel: ObservableObject {
 
         return [
             HandoffBundlePreviewItem(title: "Summary", detail: "\(input.projectName) • \(input.templateName)"),
+            HandoffBundlePreviewItem(title: "Mode", detail: selectedHandoffBundleMode.title),
             HandoffBundlePreviewItem(title: "Workflow Files", detail: workflowFileDetail),
             HandoffBundlePreviewItem(title: "File Tree", detail: "Included from the active project."),
             HandoffBundlePreviewItem(title: "Audit", detail: auditDetail),
@@ -1186,6 +1245,14 @@ final class AppViewModel: ObservableObject {
             log("Handoff bundle failed: \(error.localizedDescription)")
             handoffBundleStatus = .error("Could not copy handoff bundle. \(error.localizedDescription)")
         }
+    }
+
+    func applyHandoffBundleMode(_ mode: HandoffBundleMode) {
+        selectedHandoffBundleMode = mode
+        let configuration = mode.configuration
+        includeProjectSessionNotesInHandoff = configuration.includeProjectSessionNotes
+        includeRecentActivityInHandoff = configuration.includeRecentActivity
+        recentActivityInHandoffLimit = configuration.recentActivityLimit
     }
 
     func revealActiveProjectInFinder() {

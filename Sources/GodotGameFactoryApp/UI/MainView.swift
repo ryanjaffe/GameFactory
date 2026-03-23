@@ -177,6 +177,18 @@ private struct HandoffBundleView: View {
                         detail: viewModel.activeProjectContextDetailText
                     )
 
+                    Picker(
+                        "Mode",
+                        selection: Binding(
+                            get: { viewModel.selectedHandoffBundleMode },
+                            set: { viewModel.applyHandoffBundleMode($0) }
+                        )
+                    ) {
+                        ForEach(HandoffBundleMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+
                     Toggle("Include Project Session Notes", isOn: $viewModel.includeProjectSessionNotesInHandoff)
                     Toggle("Include Recent Activity", isOn: $viewModel.includeRecentActivityInHandoff)
 
