@@ -1429,7 +1429,9 @@ final class AppViewModel: ObservableObject {
             includeProjectSummary: includeProjectSummary,
             includeWorkflowFiles: includeWorkflowFiles,
             includeStarterContext: includeStarterContext,
-            includeNotesOrContext: includeNotesOrContext
+            includeNotesOrContext: includeNotesOrContext,
+            includeRecentActivityContext: includeRecentActivityContext,
+            recentActivityContextLimit: recentActivityContextLimit
         )
 
         let isUpdate = savedPromptPresets.contains { $0.name.localizedCaseInsensitiveCompare(trimmedName) == .orderedSame }
@@ -1455,6 +1457,12 @@ final class AppViewModel: ObservableObject {
             selectedPromptKind = promptKind
         }
         applyPromptPresetConfiguration(preset.configuration)
+        if let includeRecentActivityContext = preset.includeRecentActivityContext {
+            self.includeRecentActivityContext = includeRecentActivityContext
+        }
+        if let recentActivityContextLimit = preset.recentActivityContextLimit {
+            self.recentActivityContextLimit = recentActivityContextLimit
+        }
         promptPackStatus = .success("Applied preset.")
         log("Applied prompt preset '\(preset.name)'.")
     }
@@ -1819,7 +1827,9 @@ final class AppViewModel: ObservableObject {
                     includeProjectSummary: preset.includeProjectSummary,
                     includeWorkflowFiles: preset.includeWorkflowFiles,
                     includeStarterContext: preset.includeStarterContext,
-                    includeNotesOrContext: preset.includeNotesOrContext
+                    includeNotesOrContext: preset.includeNotesOrContext,
+                    includeRecentActivityContext: preset.includeRecentActivityContext,
+                    recentActivityContextLimit: preset.recentActivityContextLimit
                 )
             } else {
                 resolvedPreset = SavedPromptPreset(
@@ -1830,7 +1840,9 @@ final class AppViewModel: ObservableObject {
                     includeProjectSummary: preset.includeProjectSummary,
                     includeWorkflowFiles: preset.includeWorkflowFiles,
                     includeStarterContext: preset.includeStarterContext,
-                    includeNotesOrContext: preset.includeNotesOrContext
+                    includeNotesOrContext: preset.includeNotesOrContext,
+                    includeRecentActivityContext: preset.includeRecentActivityContext,
+                    recentActivityContextLimit: preset.recentActivityContextLimit
                 )
             }
 
