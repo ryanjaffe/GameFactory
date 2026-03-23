@@ -214,6 +214,7 @@ final class AppViewModel: ObservableObject {
     @Published var includeProjectSessionNotes = false {
         didSet { clearPromptPreview() }
     }
+    @Published var handoffPresetNameDraft = ""
     @Published var selectedHandoffBundleMode: HandoffBundleMode = .default {
         didSet { persistHandoffBundleSettingsIfNeeded() }
     }
@@ -248,6 +249,7 @@ final class AppViewModel: ObservableObject {
     }
     @Published var selectedPromptPreset: PromptPackPreset = .default
     @Published var selectedSavedPromptPresetID = ""
+    @Published var selectedSavedHandoffPresetID = ""
     @Published var selectedPromptMode: PromptPackMode = .standard {
         didSet { clearPromptPreview() }
     }
@@ -270,6 +272,7 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var codexHandoffMessage: String?
     @Published private(set) var presets: [ProjectPreset]
     @Published private(set) var savedPromptPresets: [SavedPromptPreset]
+    @Published private(set) var savedHandoffPresets: [SavedHandoffPreset]
     @Published private(set) var inspectedProjectSummary: InspectedProjectSummary?
     @Published private(set) var lastProjectAudit: ProjectAuditSummary?
     @Published private(set) var lastAssetImport: AssetImportSummary?
@@ -312,6 +315,7 @@ final class AppViewModel: ObservableObject {
     private let projectSessionNotesStore: ProjectSessionNotesStore
     private let presetStore: ProjectPresetStore
     private let savedPromptPresetStore: SavedPromptPresetStore
+    private let savedHandoffPresetStore: SavedHandoffPresetStore
     private let recentProjectsStore: RecentProjectsStore
     private let generator: ProjectGenerator
     private let gitService: GitService
@@ -686,8 +690,16 @@ final class AppViewModel: ObservableObject {
         !promptPresetNameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    var canSaveHandoffPreset: Bool {
+        !handoffPresetNameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var selectedSavedPromptPreset: SavedPromptPreset? {
         savedPromptPresets.first(where: { $0.id == selectedSavedPromptPresetID })
+    }
+
+    var selectedSavedHandoffPreset: SavedHandoffPreset? {
+        savedHandoffPresets.first(where: { $0.id == selectedSavedHandoffPresetID })
     }
 
     var selectedPrompt: CodexPrompt? {
@@ -742,6 +754,7 @@ final class AppViewModel: ObservableObject {
         projectSessionNotesStore: ProjectSessionNotesStore = ProjectSessionNotesStore(),
         presetStore: ProjectPresetStore = ProjectPresetStore(),
         savedPromptPresetStore: SavedPromptPresetStore = SavedPromptPresetStore(),
+        savedHandoffPresetStore: SavedHandoffPresetStore = SavedHandoffPresetStore(),
         recentProjectsStore: RecentProjectsStore = RecentProjectsStore(),
         logger: AppLogger = AppLogger(),
         generator: ProjectGenerator = ProjectGenerator(),
@@ -771,6 +784,7 @@ final class AppViewModel: ObservableObject {
         self.projectSessionNotesStore = projectSessionNotesStore
         self.presetStore = presetStore
         self.savedPromptPresetStore = savedPromptPresetStore
+        self.savedHandoffPresetStore = savedHandoffPresetStore
         self.recentProjectsStore = recentProjectsStore
         self.logger = logger
         self.generator = generator
@@ -797,11 +811,13 @@ final class AppViewModel: ObservableObject {
         self.settings = settingsStore.load()
         self.presets = presetStore.load()
         self.savedPromptPresets = savedPromptPresetStore.load()
+        self.savedHandoffPresets = savedHandoffPresetStore.load()
         self.recentProjects = recentProjectsStore.load()
         self.assetStarterPacks = assetStarterPackService.availablePacks()
         self.logEntries = logger.entries
         self.selectedPresetName = presets.first?.name ?? ""
         self.selectedSavedPromptPresetID = savedPromptPresets.first?.id ?? ""
+        self.selectedSavedHandoffPresetID = savedHandoffPresets.first?.id ?? ""
         applyLoadedHandoffBundleSettings(handoffBundleSettingsStore.load())
 
         log("App initialized")
@@ -818,6 +834,9 @@ final class AppViewModel: ObservableObject {
         }
         if !savedPromptPresets.isEmpty {
             log("Loaded \(savedPromptPresets.count) saved prompt presets")
+        }
+        if !savedHandoffPresets.isEmpty {
+            log("Loaded \(savedHandoffPresets.count) saved handoff presets")
         }
         loadProjectSessionNotesForActiveProject()
         hasFinishedInitializing = true
@@ -1266,6 +1285,66 @@ final class AppViewModel: ObservableObject {
         includeProjectSessionNotesInHandoff = configuration.includeProjectSessionNotes
         includeRecentActivityInHandoff = configuration.includeRecentActivity
         recentActivityInHandoffLimit = configuration.recentActivityLimit
+    }
+
+    func saveCurrentHandoffPreset(named desiredName: String) {
+        let trimmedName = desiredName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            handoffBundleStatus = .error("Preset name is required.")
+            log("Saved handoff preset skipped: preset name is required.")
+            return
+        }
+
+        let preset = SavedHandoffPreset(
+            id: savedHandoffPresets.first(where: { $0.name.localizedCaseInsensitiveCompare(trimmedName) == .orderedSame })?.id ?? UUID().uuidString,
+            name: trimmedName,
+            selectedMode: selectedHandoffBundleMode,
+            includeProjectSessionNotes: includeProjectSessionNotesInHandoff,
+            includeRecentActivity: includeRecentActivityInHandoff,
+            recentActivityLimit: recentActivityInHandoffLimit
+        )
+
+        let isUpdate = savedHandoffPresets.contains { $0.name.localizedCaseInsensitiveCompare(trimmedName) == .orderedSame }
+        let updatedPresets = savedHandoffPresets.filter { $0.name.localizedCaseInsensitiveCompare(trimmedName) != .orderedSame } + [preset]
+
+        guard savedHandoffPresetStore.save(updatedPresets) else {
+            handoffBundleStatus = .error("Could not save preset.")
+            log("Saved handoff preset failed for '\(trimmedName)'.")
+            return
+        }
+
+        savedHandoffPresets = savedHandoffPresetStore.load()
+        selectedSavedHandoffPresetID = preset.id
+        handoffPresetNameDraft = preset.name
+        handoffBundleStatus = .success(isUpdate ? "Updated preset." : "Saved preset.")
+        log("\(isUpdate ? "Updated" : "Saved") handoff preset '\(preset.name)'.")
+    }
+
+    func applySavedHandoffPreset(_ preset: SavedHandoffPreset) {
+        selectedSavedHandoffPresetID = preset.id
+        handoffPresetNameDraft = preset.name
+        selectedHandoffBundleMode = preset.selectedMode
+        includeProjectSessionNotesInHandoff = preset.includeProjectSessionNotes
+        includeRecentActivityInHandoff = preset.includeRecentActivity
+        recentActivityInHandoffLimit = preset.recentActivityLimit
+        handoffBundleStatus = .success("Applied preset.")
+        log("Applied handoff preset '\(preset.name)'.")
+    }
+
+    func deleteSavedHandoffPreset(_ preset: SavedHandoffPreset) {
+        let updatedPresets = savedHandoffPresets.filter { $0.id != preset.id }
+        guard savedHandoffPresetStore.save(updatedPresets) else {
+            handoffBundleStatus = .error("Could not delete preset.")
+            log("Delete handoff preset failed for '\(preset.name)'.")
+            return
+        }
+
+        savedHandoffPresets = savedHandoffPresetStore.load()
+        if selectedSavedHandoffPresetID == preset.id {
+            selectedSavedHandoffPresetID = savedHandoffPresets.first?.id ?? ""
+        }
+        handoffBundleStatus = .success("Deleted preset.")
+        log("Deleted handoff preset '\(preset.name)'.")
     }
 
     func revealActiveProjectInFinder() {
