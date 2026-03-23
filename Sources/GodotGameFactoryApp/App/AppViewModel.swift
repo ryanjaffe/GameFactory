@@ -151,6 +151,12 @@ final class AppViewModel: ObservableObject {
     @Published var promptCustomContextText = "" {
         didSet { clearPromptPreview() }
     }
+    @Published var projectSessionNotesText = "" {
+        didSet { clearPromptPreview() }
+    }
+    @Published var includeProjectSessionNotes = false {
+        didSet { clearPromptPreview() }
+    }
     @Published var includeRecentActivityContext = false {
         didSet { clearPromptPreview() }
     }
@@ -226,6 +232,7 @@ final class AppViewModel: ObservableObject {
 
     private let logger: AppLogger
     private let settingsStore: AppSettingsStore
+    private let projectSessionNotesStore: ProjectSessionNotesStore
     private let presetStore: ProjectPresetStore
     private let savedPromptPresetStore: SavedPromptPresetStore
     private let recentProjectsStore: RecentProjectsStore
@@ -644,6 +651,7 @@ final class AppViewModel: ObservableObject {
 
     init(
         settingsStore: AppSettingsStore = AppSettingsStore(),
+        projectSessionNotesStore: ProjectSessionNotesStore = ProjectSessionNotesStore(),
         presetStore: ProjectPresetStore = ProjectPresetStore(),
         savedPromptPresetStore: SavedPromptPresetStore = SavedPromptPresetStore(),
         recentProjectsStore: RecentProjectsStore = RecentProjectsStore(),
@@ -671,6 +679,7 @@ final class AppViewModel: ObservableObject {
         promptPresetTransferService: PromptPresetTransferService = PromptPresetTransferService()
     ) {
         self.settingsStore = settingsStore
+        self.projectSessionNotesStore = projectSessionNotesStore
         self.presetStore = presetStore
         self.savedPromptPresetStore = savedPromptPresetStore
         self.recentProjectsStore = recentProjectsStore
@@ -720,6 +729,7 @@ final class AppViewModel: ObservableObject {
         if !savedPromptPresets.isEmpty {
             log("Loaded \(savedPromptPresets.count) saved prompt presets")
         }
+        loadProjectSessionNotesForActiveProject()
         hasFinishedInitializing = true
     }
 
@@ -757,6 +767,7 @@ final class AppViewModel: ObservableObject {
             clearProjectAudit()
             clearAssetImport()
             loadWorkflowSettings(for: result.finalProjectURL, template: settings.template)
+            loadProjectSessionNotesForActiveProject()
             for message in result.messages {
                 log(message)
             }
@@ -898,6 +909,7 @@ final class AppViewModel: ObservableObject {
         clearProjectAudit()
         clearAssetImport()
         loadWorkflowSettings(for: selectedProjectURL, template: summary.detectedTemplate)
+        loadProjectSessionNotesForActiveProject()
 
         if summary.isValidProject {
             log("Inspected existing project: \(summary.projectURL.path)")
@@ -932,6 +944,7 @@ final class AppViewModel: ObservableObject {
         clearProjectAudit()
         clearAssetImport()
         loadWorkflowSettings(for: project.projectURL, template: project.template)
+        loadProjectSessionNotesForActiveProject()
         log("Workflow file target set to \(project.projectName).")
     }
 
@@ -958,7 +971,43 @@ final class AppViewModel: ObservableObject {
         clearProjectAudit()
         clearAssetImport()
         loadWorkflowSettings(for: inspectedProjectSummary.projectURL, template: inspectedProjectSummary.detectedTemplate)
+        loadProjectSessionNotesForActiveProject()
         log("Workflow file target set to inspected project \(inspectedProjectSummary.projectName).")
+    }
+
+    func saveProjectSessionNotesForActiveProject() {
+        guard let activeProjectURL else {
+            log("Project notes save skipped: no active project is selected.")
+            promptPackStatus = .error("No active project is available for notes.")
+            return
+        }
+
+        guard projectSessionNotesStore.saveNote(projectSessionNotesText, for: activeProjectURL.path) else {
+            log("Project notes save failed for \(activeProjectURL.path).")
+            promptPackStatus = .error("Could not save project notes.")
+            return
+        }
+
+        log("Saved project session notes for \(activeProjectName).")
+        promptPackStatus = .success("Saved project notes.")
+    }
+
+    func clearProjectSessionNotesForActiveProject() {
+        guard let activeProjectURL else {
+            log("Project notes clear skipped: no active project is selected.")
+            promptPackStatus = .error("No active project is available for notes.")
+            return
+        }
+
+        guard projectSessionNotesStore.deleteNote(for: activeProjectURL.path) else {
+            log("Project notes clear failed for \(activeProjectURL.path).")
+            promptPackStatus = .error("Could not clear project notes.")
+            return
+        }
+
+        projectSessionNotesText = ""
+        log("Cleared project session notes for \(activeProjectName).")
+        promptPackStatus = .success("Cleared project notes.")
     }
 
     func openWorkflowFile(_ kind: WorkflowFileKind) {
@@ -1790,6 +1839,11 @@ final class AppViewModel: ObservableObject {
             body += "\n\nAdditional Context\n\(trimmedCustomContext)"
         }
 
+        let trimmedProjectSessionNotes = projectSessionNotesText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if includeProjectSessionNotes, !trimmedProjectSessionNotes.isEmpty {
+            body += "\n\nProject Session Notes\n\(trimmedProjectSessionNotes)"
+        }
+
         if let recentActivityContextText {
             body += "\n\n\(recentActivityContextText)"
         }
@@ -1818,6 +1872,15 @@ final class AppViewModel: ObservableObject {
         }
 
         return sections
+    }
+
+    private func loadProjectSessionNotesForActiveProject() {
+        guard let activeProjectURL else {
+            projectSessionNotesText = ""
+            return
+        }
+
+        projectSessionNotesText = projectSessionNotesStore.loadNote(for: activeProjectURL.path)
     }
 
     private var recentActivityContextText: String? {

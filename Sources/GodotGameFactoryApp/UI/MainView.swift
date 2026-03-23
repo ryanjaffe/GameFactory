@@ -644,6 +644,26 @@ private struct PromptPackView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
+                        Text("Project Session Notes")
+                            .fontWeight(.medium)
+
+                        TextEditor(text: $viewModel.projectSessionNotesText)
+                            .font(.system(.body, design: .monospaced))
+                            .frame(minHeight: 90)
+
+                        HStack {
+                            Button("Save Notes") {
+                                viewModel.saveProjectSessionNotesForActiveProject()
+                            }
+
+                            Button("Clear Notes") {
+                                viewModel.clearProjectSessionNotesForActiveProject()
+                            }
+                            .disabled(viewModel.projectSessionNotesText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
                         Toggle("Include Recent Activity", isOn: $viewModel.includeRecentActivityContext)
 
                         if viewModel.includeRecentActivityContext {
@@ -654,6 +674,8 @@ private struct PromptPackView: View {
                             )
                         }
                     }
+
+                    Toggle("Include Project Session Notes", isOn: $viewModel.includeProjectSessionNotes)
 
                     HStack {
                         Button("Generate Preview") {
@@ -672,6 +694,22 @@ private struct PromptPackView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Preview")
                             .fontWeight(.medium)
+
+                        if viewModel.hasPromptPreview {
+                            HStack(spacing: 12) {
+                                Text("Characters: \(viewModel.previewCharacterCount)")
+                                Text("Lines: \(viewModel.previewLineCount)")
+                                Text("Words: \(viewModel.previewWordCount)")
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                            if let warning = viewModel.promptPreviewSizeWarning {
+                                Text(warning)
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
 
                         ScrollView {
                             if viewModel.hasPromptPreview {
