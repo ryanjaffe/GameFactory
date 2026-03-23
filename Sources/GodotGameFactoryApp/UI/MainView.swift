@@ -177,6 +177,17 @@ private struct HandoffBundleView: View {
                         detail: viewModel.activeProjectContextDetailText
                     )
 
+                    Toggle("Include Project Session Notes", isOn: $viewModel.includeProjectSessionNotesInHandoff)
+                    Toggle("Include Recent Activity", isOn: $viewModel.includeRecentActivityInHandoff)
+
+                    if viewModel.includeRecentActivityInHandoff {
+                        Stepper(
+                            "Entries: \(viewModel.recentActivityInHandoffLimit)",
+                            value: $viewModel.recentActivityInHandoffLimit,
+                            in: 1...10
+                        )
+                    }
+
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Bundle Preview")
                             .fontWeight(.medium)

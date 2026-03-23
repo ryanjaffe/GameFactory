@@ -158,6 +158,15 @@ final class AppViewModel: ObservableObject {
         didSet { clearPromptPreview() }
     }
     @Published var includeProjectSessionNotesInHandoff = false
+    @Published var includeRecentActivityInHandoff = false
+    @Published var recentActivityInHandoffLimit = 5 {
+        didSet {
+            let clampedValue = max(1, min(recentActivityInHandoffLimit, 10))
+            if recentActivityInHandoffLimit != clampedValue {
+                recentActivityInHandoffLimit = clampedValue
+            }
+        }
+    }
     @Published var includeRecentActivityContext = false {
         didSet { clearPromptPreview() }
     }
@@ -478,6 +487,9 @@ final class AppViewModel: ObservableObject {
         let projectSessionNotesDetail = input.projectSessionNotesText == nil
             ? "No project session notes will be included."
             : "Included from the active project's saved notes."
+        let recentActivityDetail = input.recentActivitySummaryText == nil
+            ? "No recent activity will be included."
+            : "Included from the latest \(recentActivityInHandoffLimit) log entr\(recentActivityInHandoffLimit == 1 ? "y" : "ies")."
 
         return [
             HandoffBundlePreviewItem(title: "Summary", detail: "\(input.projectName) • \(input.templateName)"),
@@ -487,6 +499,7 @@ final class AppViewModel: ObservableObject {
             HandoffBundlePreviewItem(title: "Assets", detail: assetsDetail),
             HandoffBundlePreviewItem(title: "Workflow Settings", detail: workflowSettingsDetail),
             HandoffBundlePreviewItem(title: "Project Session Notes", detail: projectSessionNotesDetail),
+            HandoffBundlePreviewItem(title: "Recent Activity", detail: recentActivityDetail),
             HandoffBundlePreviewItem(title: "Starter Prompt", detail: "Included from the active project's current prompt pack."),
             HandoffBundlePreviewItem(title: "Next Steps", detail: input.nextSteps.joined(separator: " • "))
         ]
@@ -2070,6 +2083,7 @@ final class AppViewModel: ObservableObject {
             includeProjectSessionNotesInHandoff && !trimmedProjectSessionNotes.isEmpty
             ? trimmedProjectSessionNotes
             : nil
+        let includedRecentActivitySummaryText = recentActivitySummaryTextForHandoff
 
         return HandoffBundleInput(
             projectName: activeProjectName,
@@ -2084,9 +2098,23 @@ final class AppViewModel: ObservableObject {
             recentAssetImportText: relevantRecentAssetImportText(for: activeProjectURL),
             workflowSettingsSummaryText: workflowSettingsSummaryText(for: activeProjectURL, template: template),
             projectSessionNotesText: includedProjectSessionNotesText,
+            recentActivitySummaryText: includedRecentActivitySummaryText,
             starterPrompt: starterPrompt,
             nextSteps: handoffNextSteps(for: inspectedSummary, template: template)
         )
+    }
+
+    private var recentActivitySummaryTextForHandoff: String? {
+        guard includeRecentActivityInHandoff else {
+            return nil
+        }
+
+        let recentMessages = logEntries.suffix(recentActivityInHandoffLimit).map(\.message)
+        guard !recentMessages.isEmpty else {
+            return nil
+        }
+
+        return recentMessages.map { "- \($0)" }.joined(separator: "\n")
     }
 
     private func activeGitStatusDescription(from inspectedSummary: InspectedProjectSummary) -> String {

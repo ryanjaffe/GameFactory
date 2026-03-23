@@ -34,6 +34,22 @@ struct HandoffBundleService {
             """
         } ?? ""
 
+        let projectSessionNotesSection = input.projectSessionNotesText.map {
+            """
+            ## Project Session Notes
+
+            \($0)
+            """
+        } ?? ""
+
+        let recentActivitySection = input.recentActivitySummaryText.map {
+            """
+            ## Recent Activity
+
+            \($0)
+            """
+        } ?? ""
+
         let nextSteps = input.nextSteps.map { "- \($0)" }.joined(separator: "\n")
 
         return """
@@ -60,6 +76,10 @@ struct HandoffBundleService {
 
         \(workflowSettingsSection)
 
+        \(projectSessionNotesSection)
+
+        \(recentActivitySection)
+
         ## Starter Prompt
 
         \(input.starterPrompt)
@@ -83,6 +103,8 @@ struct HandoffBundleInput {
     let assetInventorySummaryText: String
     let recentAssetImportText: String?
     let workflowSettingsSummaryText: String?
+    let projectSessionNotesText: String?
+    let recentActivitySummaryText: String?
     let starterPrompt: String
     let nextSteps: [String]
 }
