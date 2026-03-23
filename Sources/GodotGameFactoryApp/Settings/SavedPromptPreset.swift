@@ -11,6 +11,7 @@ struct SavedPromptPreset: Identifiable, Equatable, Codable {
     let includeNotesOrContext: Bool
     let includeProjectSessionNotes: Bool?
     let includeRecentActivityContext: Bool?
+    let includeValidationResultInPrompt: Bool?
     let recentActivityContextLimit: Int?
 
     init(
@@ -24,6 +25,7 @@ struct SavedPromptPreset: Identifiable, Equatable, Codable {
         includeNotesOrContext: Bool,
         includeProjectSessionNotes: Bool? = nil,
         includeRecentActivityContext: Bool? = nil,
+        includeValidationResultInPrompt: Bool? = nil,
         recentActivityContextLimit: Int? = nil
     ) {
         self.id = id
@@ -36,6 +38,7 @@ struct SavedPromptPreset: Identifiable, Equatable, Codable {
         self.includeNotesOrContext = includeNotesOrContext
         self.includeProjectSessionNotes = includeProjectSessionNotes
         self.includeRecentActivityContext = includeRecentActivityContext
+        self.includeValidationResultInPrompt = includeValidationResultInPrompt
         self.recentActivityContextLimit = recentActivityContextLimit
     }
 

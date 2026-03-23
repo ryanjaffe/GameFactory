@@ -201,7 +201,10 @@ final class AppViewModel: ObservableObject {
     @Published var presetNameDraft = ""
     @Published var selectedPresetName = ""
     @Published var selectedPromptKind: CodexPromptKind = .starter {
-        didSet { clearPromptPreview() }
+        didSet {
+            persistPromptComposerSettingsIfNeeded()
+            clearPromptPreview()
+        }
     }
     @Published var promptPackPreviewText = ""
     @Published var promptPresetNameDraft = ""
@@ -215,7 +218,10 @@ final class AppViewModel: ObservableObject {
         }
     }
     @Published var includeProjectSessionNotes = false {
-        didSet { clearPromptPreview() }
+        didSet {
+            persistPromptComposerSettingsIfNeeded()
+            clearPromptPreview()
+        }
     }
     @Published var handoffPresetNameDraft = ""
     @Published var selectedHandoffBundleMode: HandoffBundleMode = .default {
@@ -254,10 +260,16 @@ final class AppViewModel: ObservableObject {
         }
     }
     @Published var includeRecentActivityContext = false {
-        didSet { clearPromptPreview() }
+        didSet {
+            persistPromptComposerSettingsIfNeeded()
+            clearPromptPreview()
+        }
     }
     @Published var includeValidationResultInPrompt = false {
-        didSet { clearPromptPreview() }
+        didSet {
+            persistPromptComposerSettingsIfNeeded()
+            clearPromptPreview()
+        }
     }
     @Published var recentActivityContextLimit = 5 {
         didSet {
@@ -266,6 +278,7 @@ final class AppViewModel: ObservableObject {
                 recentActivityContextLimit = clampedValue
                 return
             }
+            persistPromptComposerSettingsIfNeeded()
             clearPromptPreview()
         }
     }
@@ -273,19 +286,34 @@ final class AppViewModel: ObservableObject {
     @Published var selectedSavedPromptPresetID = ""
     @Published var selectedSavedHandoffPresetID = ""
     @Published var selectedPromptMode: PromptPackMode = .standard {
-        didSet { clearPromptPreview() }
+        didSet {
+            persistPromptComposerSettingsIfNeeded()
+            clearPromptPreview()
+        }
     }
     @Published var includeProjectSummary = true {
-        didSet { clearPromptPreview() }
+        didSet {
+            persistPromptComposerSettingsIfNeeded()
+            clearPromptPreview()
+        }
     }
     @Published var includeWorkflowFiles = true {
-        didSet { clearPromptPreview() }
+        didSet {
+            persistPromptComposerSettingsIfNeeded()
+            clearPromptPreview()
+        }
     }
     @Published var includeStarterContext = true {
-        didSet { clearPromptPreview() }
+        didSet {
+            persistPromptComposerSettingsIfNeeded()
+            clearPromptPreview()
+        }
     }
     @Published var includeNotesOrContext = true {
-        didSet { clearPromptPreview() }
+        didSet {
+            persistPromptComposerSettingsIfNeeded()
+            clearPromptPreview()
+        }
     }
     @Published private(set) var lastCreatedProjectURL: URL?
     @Published private(set) var lastCreatedTemplate: ProjectTemplate?
@@ -339,6 +367,7 @@ final class AppViewModel: ObservableObject {
 
     private let logger: AppLogger
     private let settingsStore: AppSettingsStore
+    private let promptComposerSettingsStore: PromptComposerSettingsStore
     private let handoffBundleSettingsStore: HandoffBundleSettingsStore
     private let projectSessionNotesStore: ProjectSessionNotesStore
     private let presetStore: ProjectPresetStore
@@ -375,6 +404,7 @@ final class AppViewModel: ObservableObject {
     private var workflowSettingsOriginal = ProjectWorkflowSettings.defaults(for: nil)
     private var workflowSettingsLoadedProjectURL: URL?
     private var isUpdatingWorkflowSettingsDraft = false
+    private var isRestoringPromptComposerSettings = false
     private var isRestoringHandoffBundleSettings = false
 
     var hasLastCreatedProject: Bool {
@@ -816,6 +846,7 @@ final class AppViewModel: ObservableObject {
 
     init(
         settingsStore: AppSettingsStore = AppSettingsStore(),
+        promptComposerSettingsStore: PromptComposerSettingsStore = PromptComposerSettingsStore(),
         handoffBundleSettingsStore: HandoffBundleSettingsStore = HandoffBundleSettingsStore(),
         projectSessionNotesStore: ProjectSessionNotesStore = ProjectSessionNotesStore(),
         presetStore: ProjectPresetStore = ProjectPresetStore(),
@@ -848,6 +879,7 @@ final class AppViewModel: ObservableObject {
         handoffPresetTransferService: HandoffPresetTransferService = HandoffPresetTransferService()
     ) {
         self.settingsStore = settingsStore
+        self.promptComposerSettingsStore = promptComposerSettingsStore
         self.handoffBundleSettingsStore = handoffBundleSettingsStore
         self.projectSessionNotesStore = projectSessionNotesStore
         self.presetStore = presetStore
@@ -888,6 +920,7 @@ final class AppViewModel: ObservableObject {
         self.selectedPresetName = presets.first?.name ?? ""
         self.selectedSavedPromptPresetID = savedPromptPresets.first?.id ?? ""
         self.selectedSavedHandoffPresetID = savedHandoffPresets.first?.id ?? ""
+        applyLoadedPromptComposerSettings(promptComposerSettingsStore.load())
         applyLoadedHandoffBundleSettings(handoffBundleSettingsStore.load())
 
         log("App initialized")
@@ -2500,6 +2533,45 @@ final class AppViewModel: ObservableObject {
 
     private func clearHandoffBundlePreview() {
         handoffBundlePreviewText = ""
+    }
+
+    private var currentPromptComposerSettings: PromptComposerSettings {
+        PromptComposerSettings(
+            selectedPromptKind: selectedPromptKind,
+            selectedPromptMode: selectedPromptMode,
+            includeProjectSummary: includeProjectSummary,
+            includeWorkflowFiles: includeWorkflowFiles,
+            includeStarterContext: includeStarterContext,
+            includeNotesOrContext: includeNotesOrContext,
+            includeRecentActivityContext: includeRecentActivityContext,
+            recentActivityContextLimit: recentActivityContextLimit,
+            includeProjectSessionNotes: includeProjectSessionNotes,
+            includeValidationResultInPrompt: includeValidationResultInPrompt
+        )
+    }
+
+    private func applyLoadedPromptComposerSettings(_ settings: PromptComposerSettings) {
+        isRestoringPromptComposerSettings = true
+        selectedPromptKind = settings.selectedPromptKind
+        selectedPromptMode = settings.selectedPromptMode
+        includeProjectSummary = settings.includeProjectSummary
+        includeWorkflowFiles = settings.includeWorkflowFiles
+        includeStarterContext = settings.includeStarterContext
+        includeNotesOrContext = settings.includeNotesOrContext
+        includeRecentActivityContext = settings.includeRecentActivityContext
+        recentActivityContextLimit = settings.recentActivityContextLimit
+        includeProjectSessionNotes = settings.includeProjectSessionNotes
+        includeValidationResultInPrompt = settings.includeValidationResultInPrompt
+        isRestoringPromptComposerSettings = false
+        clearPromptPreview()
+    }
+
+    private func persistPromptComposerSettingsIfNeeded() {
+        guard hasFinishedInitializing, !isRestoringPromptComposerSettings else {
+            return
+        }
+
+        _ = promptComposerSettingsStore.save(currentPromptComposerSettings)
     }
 
     private var currentHandoffBundleSettings: HandoffBundleSettings {
