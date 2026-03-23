@@ -159,6 +159,8 @@ enum ProjectRecommendationActionKind {
     case saveProjectSessionNotes
     case enableProjectNotesInPrompt
     case enableProjectNotesInHandoff
+    case enableRecentActivityInPrompt
+    case enableRecentActivityInHandoff
     case runValidation
     case generatePromptPreview
     case generateHandoffPreview
@@ -175,6 +177,10 @@ enum ProjectRecommendationActionKind {
         case .enableProjectNotesInPrompt:
             return "Enable"
         case .enableProjectNotesInHandoff:
+            return "Enable"
+        case .enableRecentActivityInPrompt:
+            return "Enable"
+        case .enableRecentActivityInHandoff:
             return "Enable"
         case .runValidation:
             return "Run"
@@ -888,6 +894,18 @@ final class AppViewModel: ObservableObject {
             )
         }
 
+        if hasRecentActivityContext && !includeRecentActivityContext {
+            recommendations.append(
+                ProjectRecommendation(
+                    title: "Include recent activity in prompt",
+                    detail: "Recent activity is available but not included in prompt output.",
+                    targetSection: nil,
+                    targetSubsection: nil,
+                    actionKind: .enableRecentActivityInPrompt
+                )
+            )
+        }
+
         if hasPromptPack && !hasPromptPreview && hasPromptContextReady {
             recommendations.append(
                 ProjectRecommendation(
@@ -908,6 +926,18 @@ final class AppViewModel: ObservableObject {
                     targetSection: nil,
                     targetSubsection: nil,
                     actionKind: .copyPromptPreview
+                )
+            )
+        }
+
+        if hasRecentActivityContext && !includeRecentActivityInHandoff {
+            recommendations.append(
+                ProjectRecommendation(
+                    title: "Include recent activity in handoff",
+                    detail: "Recent activity is available but not included in handoff output.",
+                    targetSection: nil,
+                    targetSubsection: nil,
+                    actionKind: .enableRecentActivityInHandoff
                 )
             )
         }
@@ -2696,6 +2726,10 @@ final class AppViewModel: ObservableObject {
 
     private var hasProjectSessionNotesContext: Bool {
         !projectSessionNotesText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var hasRecentActivityContext: Bool {
+        logEntries.contains { !$0.message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
 
     private var missingWorkflowFileKinds: [WorkflowFileKind] {

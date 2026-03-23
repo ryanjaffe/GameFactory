@@ -154,6 +154,10 @@ struct MainView: View {
             viewModel.includeProjectSessionNotes = true
         case .enableProjectNotesInHandoff:
             viewModel.includeProjectSessionNotesInHandoff = true
+        case .enableRecentActivityInPrompt:
+            viewModel.includeRecentActivityContext = true
+        case .enableRecentActivityInHandoff:
+            viewModel.includeRecentActivityInHandoff = true
         case .runValidation:
             viewModel.runValidationForActiveProject()
         case .generatePromptPreview:
