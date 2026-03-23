@@ -151,6 +151,19 @@ final class AppViewModel: ObservableObject {
     @Published var promptCustomContextText = "" {
         didSet { clearPromptPreview() }
     }
+    @Published var includeRecentActivityContext = false {
+        didSet { clearPromptPreview() }
+    }
+    @Published var recentActivityContextLimit = 5 {
+        didSet {
+            let clampedValue = max(1, min(recentActivityContextLimit, 10))
+            if recentActivityContextLimit != clampedValue {
+                recentActivityContextLimit = clampedValue
+                return
+            }
+            clearPromptPreview()
+        }
+    }
     @Published var selectedPromptPreset: PromptPackPreset = .default
     @Published var selectedSavedPromptPresetID = ""
     @Published var selectedPromptMode: PromptPackMode = .standard {
@@ -1731,6 +1744,10 @@ final class AppViewModel: ObservableObject {
             body += "\n\nAdditional Context\n\(trimmedCustomContext)"
         }
 
+        if let recentActivityContextText {
+            body += "\n\n\(recentActivityContextText)"
+        }
+
         guard let promptHeader = selectedPromptMode.promptHeader else {
             return body
         }
@@ -1755,6 +1772,23 @@ final class AppViewModel: ObservableObject {
         }
 
         return sections
+    }
+
+    private var recentActivityContextText: String? {
+        guard includeRecentActivityContext else {
+            return nil
+        }
+
+        let recentMessages = logEntries
+            .suffix(recentActivityContextLimit)
+            .map(\.message)
+
+        guard !recentMessages.isEmpty else {
+            return nil
+        }
+
+        let lines = recentMessages.map { "- \($0)" }.joined(separator: "\n")
+        return "Recent Activity\n\(lines)"
     }
 
     private func mergeImportedPromptPresets(

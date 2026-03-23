@@ -586,6 +586,14 @@ private struct PromptPackView: View {
                             }
                             .disabled(!viewModel.canSavePromptPreset)
 
+                            Button("Export Presets") {
+                                viewModel.exportSavedPromptPresets()
+                            }
+
+                            Button("Import Presets") {
+                                viewModel.importSavedPromptPresets()
+                            }
+
                             Picker("Saved", selection: $viewModel.selectedSavedPromptPresetID) {
                                 Text("Select a saved preset").tag("")
                                 ForEach(viewModel.savedPromptPresets) { preset in
@@ -633,6 +641,18 @@ private struct PromptPackView: View {
                         TextEditor(text: $viewModel.promptCustomContextText)
                             .font(.system(.body, design: .monospaced))
                             .frame(minHeight: 90)
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle("Include Recent Activity", isOn: $viewModel.includeRecentActivityContext)
+
+                        if viewModel.includeRecentActivityContext {
+                            Stepper(
+                                "Entries: \(viewModel.recentActivityContextLimit)",
+                                value: $viewModel.recentActivityContextLimit,
+                                in: 1...10
+                            )
+                        }
                     }
 
                     HStack {
