@@ -1517,6 +1517,7 @@ final class AppViewModel: ObservableObject {
             includeWorkflowFiles: includeWorkflowFiles,
             includeStarterContext: includeStarterContext,
             includeNotesOrContext: includeNotesOrContext,
+            includeProjectSessionNotes: includeProjectSessionNotes,
             includeRecentActivityContext: includeRecentActivityContext,
             recentActivityContextLimit: recentActivityContextLimit
         )
@@ -1544,6 +1545,9 @@ final class AppViewModel: ObservableObject {
             selectedPromptKind = promptKind
         }
         applyPromptPresetConfiguration(preset.configuration)
+        if let includeProjectSessionNotes = preset.includeProjectSessionNotes {
+            self.includeProjectSessionNotes = includeProjectSessionNotes
+        }
         if let includeRecentActivityContext = preset.includeRecentActivityContext {
             self.includeRecentActivityContext = includeRecentActivityContext
         }
@@ -1929,6 +1933,7 @@ final class AppViewModel: ObservableObject {
                     includeWorkflowFiles: preset.includeWorkflowFiles,
                     includeStarterContext: preset.includeStarterContext,
                     includeNotesOrContext: preset.includeNotesOrContext,
+                    includeProjectSessionNotes: preset.includeProjectSessionNotes,
                     includeRecentActivityContext: preset.includeRecentActivityContext,
                     recentActivityContextLimit: preset.recentActivityContextLimit
                 )
@@ -1942,6 +1947,7 @@ final class AppViewModel: ObservableObject {
                     includeWorkflowFiles: preset.includeWorkflowFiles,
                     includeStarterContext: preset.includeStarterContext,
                     includeNotesOrContext: preset.includeNotesOrContext,
+                    includeProjectSessionNotes: preset.includeProjectSessionNotes,
                     includeRecentActivityContext: preset.includeRecentActivityContext,
                     recentActivityContextLimit: preset.recentActivityContextLimit
                 )
