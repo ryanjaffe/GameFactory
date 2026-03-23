@@ -135,6 +135,7 @@ struct ProjectRecommendation: Identifiable {
     let title: String
     let detail: String
     let targetSection: ProjectRecommendationTargetSection?
+    let targetSubsection: ProjectRecommendationSubsectionTarget?
 
     var id: String { title }
 }
@@ -142,6 +143,14 @@ struct ProjectRecommendation: Identifiable {
 enum ProjectRecommendationTargetSection {
     case newProject
     case settings
+}
+
+enum ProjectRecommendationSubsectionTarget: Hashable {
+    case promptPack
+    case projectSessionNotes
+    case workflowFiles
+    case validationCenter
+    case handoffBundle
 }
 
 struct HandoffBundleModeConfiguration {
@@ -780,7 +789,8 @@ final class AppViewModel: ObservableObject {
                 ProjectRecommendation(
                     title: "Generate workflow files",
                     detail: "\(missingWorkflowFiles.joined(separator: ", ")) \(missingWorkflowFiles.count == 1 ? "is" : "are") missing.",
-                    targetSection: .settings
+                    targetSection: .settings,
+                    targetSubsection: .workflowFiles
                 )
             )
         }
@@ -790,7 +800,8 @@ final class AppViewModel: ObservableObject {
                 ProjectRecommendation(
                     title: "Run validation",
                     detail: "Validation has not been run from the app yet.",
-                    targetSection: .settings
+                    targetSection: .settings,
+                    targetSubsection: .validationCenter
                 )
             )
         }
@@ -800,7 +811,8 @@ final class AppViewModel: ObservableObject {
                 ProjectRecommendation(
                     title: "Add project notes",
                     detail: "Prompt and handoff context are still limited without project session notes.",
-                    targetSection: .newProject
+                    targetSection: .newProject,
+                    targetSubsection: .projectSessionNotes
                 )
             )
         }
@@ -810,7 +822,8 @@ final class AppViewModel: ObservableObject {
                 ProjectRecommendation(
                     title: "Generate a prompt preview",
                     detail: "Prompt context is ready to preview and copy.",
-                    targetSection: .newProject
+                    targetSection: .newProject,
+                    targetSubsection: .promptPack
                 )
             )
         }
@@ -820,7 +833,8 @@ final class AppViewModel: ObservableObject {
                 ProjectRecommendation(
                     title: "Strengthen handoff context",
                     detail: "Run an audit, validation, or add notes before copying a handoff bundle.",
-                    targetSection: .settings
+                    targetSection: .settings,
+                    targetSubsection: .handoffBundle
                 )
             )
         }

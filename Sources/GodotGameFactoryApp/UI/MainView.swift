@@ -44,12 +44,14 @@ struct MainView: View {
 
     @ObservedObject var viewModel: AppViewModel
     @State private var selectedSection: SidebarSection = .newProject
+    @State private var focusedSubsection: ProjectRecommendationSubsectionTarget?
 
     var body: some View {
         HSplitView {
             VStack(alignment: .leading, spacing: 12) {
                 ForEach(SidebarSection.allCases) { section in
                     Button {
+                        focusedSubsection = nil
                         selectedSection = section
                     } label: {
                         Label(section.title, systemImage: section.systemImageName)
@@ -69,51 +71,73 @@ struct MainView: View {
             .frame(minWidth: 180, idealWidth: 200, maxWidth: 220, maxHeight: .infinity, alignment: .topLeading)
             .padding()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    Text(selectedSection.title)
-                        .font(.largeTitle)
-                        .fontWeight(.semibold)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        Text(selectedSection.title)
+                            .font(.largeTitle)
+                            .fontWeight(.semibold)
 
-                    Text(selectedSection.description)
-                        .foregroundStyle(.secondary)
+                        Text(selectedSection.description)
+                            .foregroundStyle(.secondary)
 
-                    switch selectedSection {
-                    case .newProject:
-                        PresetsView(viewModel: viewModel)
-                        NewProjectFormView(viewModel: viewModel)
-                        ProjectSummaryView(viewModel: viewModel)
-                        PromptPackView(viewModel: viewModel)
-                        PostCreateActionsView(viewModel: viewModel)
-                        CodexHandoffStatusView(viewModel: viewModel)
-                        RecentProjectsView(viewModel: viewModel)
-                    case .settings:
-                        SettingsActiveProjectView(
-                            viewModel: viewModel,
-                            openRecommendationTarget: { target in
-                                switch target {
-                                case .newProject:
-                                    selectedSection = .newProject
-                                case .settings:
-                                    selectedSection = .settings
+                        switch selectedSection {
+                        case .newProject:
+                            PresetsView(viewModel: viewModel)
+                            NewProjectFormView(viewModel: viewModel)
+                            ProjectSummaryView(viewModel: viewModel)
+                            PromptPackView(viewModel: viewModel, focusedSubsection: focusedSubsection)
+                            PostCreateActionsView(viewModel: viewModel)
+                            CodexHandoffStatusView(viewModel: viewModel)
+                            RecentProjectsView(viewModel: viewModel)
+                        case .settings:
+                            SettingsActiveProjectView(
+                                viewModel: viewModel,
+                                openRecommendationTarget: { target, subsection in
+                                    openRecommendationTarget(target, subsection: subsection, proxy: proxy)
                                 }
-                            }
-                        )
-                        ProjectInspectorView(viewModel: viewModel)
-                        ProjectAuditView(viewModel: viewModel)
-                        AssetImportView(viewModel: viewModel)
-                        AssetStarterPacksView(viewModel: viewModel)
-                        HandoffBundleView(viewModel: viewModel)
-                        WorkflowFilesView(viewModel: viewModel)
-                        WorkflowSettingsView(viewModel: viewModel)
-                    case .logs:
-                        LogPanelView(searchText: $viewModel.logSearchText, entries: viewModel.filteredLogEntries)
+                            )
+                            ProjectInspectorView(viewModel: viewModel)
+                            ProjectAuditView(viewModel: viewModel)
+                            AssetImportView(viewModel: viewModel)
+                            AssetStarterPacksView(viewModel: viewModel)
+                            HandoffBundleView(viewModel: viewModel, focusedSubsection: focusedSubsection)
+                            WorkflowFilesView(viewModel: viewModel, focusedSubsection: focusedSubsection)
+                            WorkflowSettingsView(viewModel: viewModel)
+                        case .logs:
+                            LogPanelView(searchText: $viewModel.logSearchText, entries: viewModel.filteredLogEntries)
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(24)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(24)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private func openRecommendationTarget(
+        _ target: ProjectRecommendationTargetSection,
+        subsection: ProjectRecommendationSubsectionTarget?,
+        proxy: ScrollViewProxy
+    ) {
+        switch target {
+        case .newProject:
+            selectedSection = .newProject
+        case .settings:
+            selectedSection = .settings
+        }
+
+        focusedSubsection = subsection
+
+        guard let subsection else {
+            return
+        }
+
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                proxy.scrollTo(subsection, anchor: .top)
+            }
         }
     }
 }
@@ -172,6 +196,7 @@ private struct AssetStarterPacksView: View {
 
 private struct HandoffBundleView: View {
     @ObservedObject var viewModel: AppViewModel
+    let focusedSubsection: ProjectRecommendationSubsectionTarget?
 
     var body: some View {
         GroupBox("Handoff Bundle") {
@@ -313,6 +338,8 @@ private struct HandoffBundleView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .id(ProjectRecommendationSubsectionTarget.handoffBundle)
+        .modifier(SubsectionHighlightModifier(isFocused: focusedSubsection == .handoffBundle))
     }
 }
 
@@ -650,6 +677,7 @@ private struct RecentProjectsView: View {
 
 private struct PromptPackView: View {
     @ObservedObject var viewModel: AppViewModel
+    let focusedSubsection: ProjectRecommendationSubsectionTarget?
 
     var body: some View {
         GroupBox("Codex Prompt Pack") {
@@ -771,6 +799,8 @@ private struct PromptPackView: View {
                             .disabled(viewModel.projectSessionNotesText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         }
                     }
+                    .id(ProjectRecommendationSubsectionTarget.projectSessionNotes)
+                    .modifier(SubsectionHighlightModifier(isFocused: focusedSubsection == .projectSessionNotes))
 
                     VStack(alignment: .leading, spacing: 8) {
                         Toggle("Include Recent Activity", isOn: $viewModel.includeRecentActivityContext)
@@ -852,6 +882,8 @@ private struct PromptPackView: View {
                 }
             }
         }
+        .id(ProjectRecommendationSubsectionTarget.promptPack)
+        .modifier(SubsectionHighlightModifier(isFocused: focusedSubsection == .promptPack))
     }
 }
 
@@ -1012,6 +1044,7 @@ private struct WorkflowSettingsView: View {
 
 private struct WorkflowFilesView: View {
     @ObservedObject var viewModel: AppViewModel
+    let focusedSubsection: ProjectRecommendationSubsectionTarget?
 
     var body: some View {
         GroupBox("Workflow Files") {
@@ -1074,6 +1107,8 @@ private struct WorkflowFilesView: View {
                         }
                         .frame(minHeight: 160)
                     }
+                    .id(ProjectRecommendationSubsectionTarget.validationCenter)
+                    .modifier(SubsectionHighlightModifier(isFocused: focusedSubsection == .validationCenter))
 
                     if let selectedWorkflowFile = viewModel.selectedWorkflowFile {
                         VStack(alignment: .leading, spacing: 10) {
@@ -1145,6 +1180,8 @@ private struct WorkflowFilesView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .id(ProjectRecommendationSubsectionTarget.workflowFiles)
+        .modifier(SubsectionHighlightModifier(isFocused: focusedSubsection == .workflowFiles))
     }
 }
 
@@ -1338,7 +1375,7 @@ private struct EmptyStateText: View {
 
 private struct SettingsActiveProjectView: View {
     @ObservedObject var viewModel: AppViewModel
-    let openRecommendationTarget: (ProjectRecommendationTargetSection) -> Void
+    let openRecommendationTarget: (ProjectRecommendationTargetSection, ProjectRecommendationSubsectionTarget?) -> Void
 
     var body: some View {
         GroupBox("Current Project") {
@@ -1402,7 +1439,7 @@ private struct SettingsActiveProjectView: View {
 
                                     if let targetSection = recommendation.targetSection {
                                         Button("Open") {
-                                            openRecommendationTarget(targetSection)
+                                            openRecommendationTarget(targetSection, recommendation.targetSubsection)
                                         }
                                     }
                                 }
@@ -1418,6 +1455,23 @@ private struct SettingsActiveProjectView: View {
                 ActiveProjectRequiredEmptyState()
             }
         }
+    }
+}
+
+private struct SubsectionHighlightModifier: ViewModifier {
+    let isFocused: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .padding(isFocused ? 10 : 0)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(isFocused ? Color.accentColor.opacity(0.08) : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isFocused ? Color.accentColor.opacity(0.35) : Color.clear, lineWidth: 1.5)
+            )
     }
 }
 
