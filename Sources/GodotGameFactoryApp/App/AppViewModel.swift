@@ -148,6 +148,9 @@ final class AppViewModel: ObservableObject {
     }
     @Published var promptPackPreviewText = ""
     @Published var promptPresetNameDraft = ""
+    @Published var promptCustomContextText = "" {
+        didSet { clearPromptPreview() }
+    }
     @Published var selectedPromptPreset: PromptPackPreset = .default
     @Published var selectedSavedPromptPresetID = ""
     @Published var selectedPromptMode: PromptPackMode = .standard {
@@ -1672,7 +1675,12 @@ final class AppViewModel: ObservableObject {
         )
         .filter { includedPromptSections.contains($0.kind) }
 
-        let body = sections.map(\.body).joined(separator: "\n\n")
+        var body = sections.map(\.body).joined(separator: "\n\n")
+
+        let trimmedCustomContext = promptCustomContextText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if includeNotesOrContext, !trimmedCustomContext.isEmpty {
+            body += "\n\nAdditional Context\n\(trimmedCustomContext)"
+        }
 
         guard let promptHeader = selectedPromptMode.promptHeader else {
             return body

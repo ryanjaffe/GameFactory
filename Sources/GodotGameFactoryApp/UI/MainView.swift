@@ -626,6 +626,15 @@ private struct PromptPackView: View {
                         Toggle("Notes / Context", isOn: $viewModel.includeNotesOrContext)
                     }
 
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Additional Context")
+                            .fontWeight(.medium)
+
+                        TextEditor(text: $viewModel.promptCustomContextText)
+                            .font(.system(.body, design: .monospaced))
+                            .frame(minHeight: 90)
+                    }
+
                     HStack {
                         Button("Generate Preview") {
                             viewModel.generatePromptPreview()
