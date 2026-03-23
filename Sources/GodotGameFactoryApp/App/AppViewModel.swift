@@ -1389,6 +1389,7 @@ final class AppViewModel: ObservableObject {
             selectedMode: selectedHandoffBundleMode,
             includeProjectSessionNotes: includeProjectSessionNotesInHandoff,
             includeRecentActivity: includeRecentActivityInHandoff,
+            includeValidationResult: includeValidationResultInHandoff,
             recentActivityLimit: recentActivityInHandoffLimit
         )
 
@@ -1414,6 +1415,9 @@ final class AppViewModel: ObservableObject {
         selectedHandoffBundleMode = preset.selectedMode
         includeProjectSessionNotesInHandoff = preset.includeProjectSessionNotes
         includeRecentActivityInHandoff = preset.includeRecentActivity
+        if let includeValidationResult = preset.includeValidationResult {
+            includeValidationResultInHandoff = includeValidationResult
+        }
         recentActivityInHandoffLimit = preset.recentActivityLimit
         handoffBundleStatus = .success("Applied preset.")
         log("Applied handoff preset '\(preset.name)'.")
@@ -2351,6 +2355,7 @@ final class AppViewModel: ObservableObject {
                     selectedMode: preset.selectedMode,
                     includeProjectSessionNotes: preset.includeProjectSessionNotes,
                     includeRecentActivity: preset.includeRecentActivity,
+                    includeValidationResult: preset.includeValidationResult ?? existingPreset.includeValidationResult,
                     recentActivityLimit: preset.recentActivityLimit
                 )
             } else {
@@ -2360,6 +2365,7 @@ final class AppViewModel: ObservableObject {
                     selectedMode: preset.selectedMode,
                     includeProjectSessionNotes: preset.includeProjectSessionNotes,
                     includeRecentActivity: preset.includeRecentActivity,
+                    includeValidationResult: preset.includeValidationResult,
                     recentActivityLimit: preset.recentActivityLimit
                 )
             }
