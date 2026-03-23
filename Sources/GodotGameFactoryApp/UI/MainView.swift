@@ -152,6 +152,8 @@ struct MainView: View {
             viewModel.generatePromptPreview()
         case .generateHandoffPreview:
             viewModel.generateHandoffBundlePreview()
+        case .generateWorkflowFiles:
+            viewModel.generateMissingWorkflowFilesForActiveProject()
         }
     }
 }

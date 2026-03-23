@@ -158,6 +158,7 @@ enum ProjectRecommendationActionKind {
     case runValidation
     case generatePromptPreview
     case generateHandoffPreview
+    case generateWorkflowFiles
 
     var buttonTitle: String {
         switch self {
@@ -166,6 +167,8 @@ enum ProjectRecommendationActionKind {
         case .generatePromptPreview:
             return "Generate"
         case .generateHandoffPreview:
+            return "Generate"
+        case .generateWorkflowFiles:
             return "Generate"
         }
     }
@@ -696,13 +699,7 @@ final class AppViewModel: ObservableObject {
     }
 
     var hasWorkflowFilesReady: Bool {
-        guard let activeProjectURL else {
-            return false
-        }
-
-        return WorkflowFileKind.allCases.allSatisfy { kind in
-            FileManager.default.fileExists(atPath: workflowFileService.fileURL(for: kind, projectURL: activeProjectURL).path)
-        }
+        missingWorkflowFileKinds.isEmpty
     }
 
     var hasValidationResultReady: Bool {
@@ -726,13 +723,11 @@ final class AppViewModel: ObservableObject {
     }
 
     var projectReadinessItems: [ProjectReadinessItem] {
-        guard let activeProjectURL else {
+        guard hasActiveProject else {
             return []
         }
 
-        let missingWorkflowFiles = WorkflowFileKind.allCases
-            .filter { !FileManager.default.fileExists(atPath: workflowFileService.fileURL(for: $0, projectURL: activeProjectURL).path) }
-            .map(\.fileName)
+        let missingWorkflowFiles = missingWorkflowFileKinds.map(\.fileName)
 
         let workflowFilesDetail = missingWorkflowFiles.isEmpty
             ? "AGENTS.md, README.md, and run_validation.sh are present."
@@ -793,15 +788,13 @@ final class AppViewModel: ObservableObject {
     }
 
     var projectRecommendations: [ProjectRecommendation] {
-        guard let activeProjectURL else {
+        guard hasActiveProject else {
             return []
         }
 
         var recommendations: [ProjectRecommendation] = []
 
-        let missingWorkflowFiles = WorkflowFileKind.allCases
-            .filter { !FileManager.default.fileExists(atPath: workflowFileService.fileURL(for: $0, projectURL: activeProjectURL).path) }
-            .map(\.fileName)
+        let missingWorkflowFiles = missingWorkflowFileKinds.map(\.fileName)
         if !missingWorkflowFiles.isEmpty {
             recommendations.append(
                 ProjectRecommendation(
@@ -809,7 +802,7 @@ final class AppViewModel: ObservableObject {
                     detail: "\(missingWorkflowFiles.joined(separator: ", ")) \(missingWorkflowFiles.count == 1 ? "is" : "are") missing.",
                     targetSection: .settings,
                     targetSubsection: .workflowFiles,
-                    actionKind: nil
+                    actionKind: .generateWorkflowFiles
                 )
             )
         }
@@ -1873,6 +1866,53 @@ final class AppViewModel: ObservableObject {
         log("Workflow file restore canceled.")
     }
 
+    func generateMissingWorkflowFilesForActiveProject() {
+        guard let projectURL = workflowFileTargetProjectURL else {
+            log("Generate missing workflow files skipped: no project is selected.")
+            workflowFileStatus = .error("No active project is available for workflow files.")
+            return
+        }
+
+        let missingKinds = missingWorkflowFileKinds
+        guard !missingKinds.isEmpty else {
+            log("Generate missing workflow files skipped: all workflow files are already present.")
+            workflowFileStatus = .success("Workflow files are already present.")
+            return
+        }
+
+        let template = activeProjectTemplate ?? .blank
+        if activeProjectTemplate == nil {
+            log("Workflow file generation note: template is unknown, using Blank defaults.")
+        }
+
+        let workflowSettings = workflowSettingsForProject(projectURL, template: activeProjectTemplate)
+
+        do {
+            for kind in missingKinds {
+                let result = try workflowFileRepairService.regenerateFile(
+                    kind: kind,
+                    projectURL: projectURL,
+                    projectName: activeProjectName,
+                    gitHubUsername: settings.gitHubUsername,
+                    repoVisibility: settings.repoVisibility,
+                    template: template,
+                    validationTargetOverride: workflowSettings.trimmedValidationTarget
+                )
+
+                if result.isExecutable {
+                    log("Regenerated missing \(kind.fileName) and ensured it is executable.")
+                } else {
+                    log("Regenerated missing \(kind.fileName).")
+                }
+            }
+
+            workflowFileStatus = .success("Generated \(missingKinds.count) missing workflow file\(missingKinds.count == 1 ? "" : "s").")
+        } catch {
+            log("Generate missing workflow files failed: \(error.localizedDescription)")
+            workflowFileStatus = .error("Could not generate missing workflow files. \(error.localizedDescription)")
+        }
+    }
+
     func runValidationForActiveProject() {
         guard !validationIsRunning else {
             return
@@ -2558,6 +2598,16 @@ final class AppViewModel: ObservableObject {
 
     private var hasProjectSessionNotesContext: Bool {
         !projectSessionNotesText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var missingWorkflowFileKinds: [WorkflowFileKind] {
+        guard let activeProjectURL else {
+            return WorkflowFileKind.allCases
+        }
+
+        return WorkflowFileKind.allCases.filter { kind in
+            !FileManager.default.fileExists(atPath: workflowFileService.fileURL(for: kind, projectURL: activeProjectURL).path)
+        }
     }
 
     private var promptContextSources: [String] {
