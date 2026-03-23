@@ -131,6 +131,13 @@ struct ProjectReadinessItem: Identifiable {
     var id: String { title }
 }
 
+struct ProjectRecommendation: Identifiable {
+    let title: String
+    let detail: String
+
+    var id: String { title }
+}
+
 struct HandoffBundleModeConfiguration {
     let includeProjectSessionNotes: Bool
     let includeRecentActivity: Bool
@@ -750,6 +757,68 @@ final class AppViewModel: ObservableObject {
                 isReady: hasHandoffContextReady
             ),
         ]
+    }
+
+    var projectRecommendations: [ProjectRecommendation] {
+        guard let activeProjectURL else {
+            return []
+        }
+
+        var recommendations: [ProjectRecommendation] = []
+
+        let missingWorkflowFiles = WorkflowFileKind.allCases
+            .filter { !FileManager.default.fileExists(atPath: workflowFileService.fileURL(for: $0, projectURL: activeProjectURL).path) }
+            .map(\.fileName)
+        if !missingWorkflowFiles.isEmpty {
+            recommendations.append(
+                ProjectRecommendation(
+                    title: "Generate workflow files",
+                    detail: "\(missingWorkflowFiles.joined(separator: ", ")) \(missingWorkflowFiles.count == 1 ? "is" : "are") missing."
+                )
+            )
+        }
+
+        if !hasValidationResultReady && !validationIsRunning {
+            recommendations.append(
+                ProjectRecommendation(
+                    title: "Run validation",
+                    detail: "Validation has not been run from the app yet."
+                )
+            )
+        }
+
+        if !hasProjectSessionNotesContext && (hasPromptPack || hasHandoffBundleTarget) {
+            recommendations.append(
+                ProjectRecommendation(
+                    title: "Add project notes",
+                    detail: "Prompt and handoff context are still limited without project session notes."
+                )
+            )
+        }
+
+        if hasPromptPack && !hasPromptPreview && hasPromptContextReady {
+            recommendations.append(
+                ProjectRecommendation(
+                    title: "Generate a prompt preview",
+                    detail: "Prompt context is ready to preview and copy."
+                )
+            )
+        }
+
+        if hasHandoffBundleTarget && !hasHandoffContextReady {
+            recommendations.append(
+                ProjectRecommendation(
+                    title: "Strengthen handoff context",
+                    detail: "Run an audit, validation, or add notes before copying a handoff bundle."
+                )
+            )
+        }
+
+        return Array(recommendations.prefix(4))
+    }
+
+    var hasProjectRecommendations: Bool {
+        !projectRecommendations.isEmpty
     }
 
     var hasHandoffBundlePreview: Bool {

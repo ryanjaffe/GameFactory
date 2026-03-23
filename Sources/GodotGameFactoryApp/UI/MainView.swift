@@ -1354,6 +1354,41 @@ private struct SettingsActiveProjectView: View {
                         }
                     }
 
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Project Readiness")
+                            .fontWeight(.medium)
+
+                        ForEach(viewModel.projectReadinessItems) { item in
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 8) {
+                                    Text(item.title)
+                                        .fontWeight(.medium)
+                                    Text(item.status)
+                                        .foregroundStyle(item.isReady ? .green : .secondary)
+                                }
+
+                                Text(item.detail)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+
+                    if viewModel.hasProjectRecommendations {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Project Recommendations")
+                                .fontWeight(.medium)
+
+                            ForEach(viewModel.projectRecommendations) { recommendation in
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(recommendation.title)
+                                        .fontWeight(.medium)
+                                    Text(recommendation.detail)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+
                     if let status = viewModel.activeProjectStatus {
                         InlineStatusMessageView(status: status)
                     }
