@@ -211,7 +211,7 @@ struct CodexPrompt: Identifiable, Equatable {
     var id: String { kind.rawValue }
 }
 
-enum CodexPromptKind: String, CaseIterable, Identifiable {
+enum CodexPromptKind: String, CaseIterable, Identifiable, Codable {
     case starter
     case nextMechanic
     case diagnoseIssue

@@ -236,6 +236,7 @@ final class AppViewModel: ObservableObject {
     private let workflowFileService: WorkflowFileService
     private let workflowFileRepairService: WorkflowFileRepairService
     private let workflowSettingsService: ProjectWorkflowSettingsService
+    private let promptPresetTransferService: PromptPresetTransferService
     private var hasFinishedInitializing = false
     private var hasLoggedSaveFailure = false
     private var hasSavedSettings = false
@@ -615,7 +616,8 @@ final class AppViewModel: ObservableObject {
         handoffBundleService: HandoffBundleService = HandoffBundleService(),
         workflowFileService: WorkflowFileService = WorkflowFileService(),
         workflowFileRepairService: WorkflowFileRepairService = WorkflowFileRepairService(),
-        workflowSettingsService: ProjectWorkflowSettingsService = ProjectWorkflowSettingsService()
+        workflowSettingsService: ProjectWorkflowSettingsService = ProjectWorkflowSettingsService(),
+        promptPresetTransferService: PromptPresetTransferService = PromptPresetTransferService()
     ) {
         self.settingsStore = settingsStore
         self.presetStore = presetStore
@@ -642,6 +644,7 @@ final class AppViewModel: ObservableObject {
         self.workflowFileService = workflowFileService
         self.workflowFileRepairService = workflowFileRepairService
         self.workflowSettingsService = workflowSettingsService
+        self.promptPresetTransferService = promptPresetTransferService
         self.settings = settingsStore.load()
         self.presets = presetStore.load()
         self.savedPromptPresets = savedPromptPresetStore.load()
@@ -1459,6 +1462,48 @@ final class AppViewModel: ObservableObject {
         log("Deleted prompt preset '\(preset.name)'.")
     }
 
+    func exportSavedPromptPresets() {
+        do {
+            guard let destinationURL = try promptPresetTransferService.exportPresets(savedPromptPresets) else {
+                return
+            }
+
+            promptPackStatus = .success("Exported presets.")
+            log("Exported \(savedPromptPresets.count) prompt preset(s) to \(destinationURL.path).")
+        } catch {
+            promptPackStatus = .error("Export failed. \(error.localizedDescription)")
+            log("Prompt preset export failed: \(error.localizedDescription)")
+        }
+    }
+
+    func importSavedPromptPresets() {
+        do {
+            guard let importedPresets = try promptPresetTransferService.importPresets() else {
+                return
+            }
+
+            let mergedPresets = mergeImportedPromptPresets(importedPresets, into: savedPromptPresets)
+            guard savedPromptPresetStore.save(mergedPresets) else {
+                promptPackStatus = .error("Import failed. Could not save presets.")
+                log("Prompt preset import failed: merged presets could not be saved.")
+                return
+            }
+
+            savedPromptPresets = savedPromptPresetStore.load()
+            if let selectedSavedPromptPreset, savedPromptPresets.contains(selectedSavedPromptPreset) {
+                selectedSavedPromptPresetID = selectedSavedPromptPreset.id
+            } else {
+                selectedSavedPromptPresetID = savedPromptPresets.first?.id ?? ""
+            }
+
+            promptPackStatus = .success("Imported \(importedPresets.count) preset(s).")
+            log("Imported \(importedPresets.count) prompt preset(s).")
+        } catch {
+            promptPackStatus = .error("Import failed. \(error.localizedDescription)")
+            log("Prompt preset import failed: \(error.localizedDescription)")
+        }
+    }
+
     private func applyPromptPresetConfiguration(_ configuration: PromptPackPresetConfiguration) {
         selectedPromptMode = configuration.mode
         includeProjectSummary = configuration.includeProjectSummary
@@ -1710,6 +1755,56 @@ final class AppViewModel: ObservableObject {
         }
 
         return sections
+    }
+
+    private func mergeImportedPromptPresets(
+        _ importedPresets: [SavedPromptPreset],
+        into existingPresets: [SavedPromptPreset]
+    ) -> [SavedPromptPreset] {
+        var mergedByName = Dictionary(
+            uniqueKeysWithValues: existingPresets.map {
+                ($0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), $0)
+            }
+        )
+
+        for preset in importedPresets {
+            let trimmedName = preset.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedName.isEmpty else {
+                continue
+            }
+
+            let normalizedKey = trimmedName.lowercased()
+            let resolvedPreset: SavedPromptPreset
+
+            if let existingPreset = mergedByName[normalizedKey] {
+                resolvedPreset = SavedPromptPreset(
+                    id: existingPreset.id,
+                    name: trimmedName,
+                    promptKind: preset.promptKind,
+                    mode: preset.mode,
+                    includeProjectSummary: preset.includeProjectSummary,
+                    includeWorkflowFiles: preset.includeWorkflowFiles,
+                    includeStarterContext: preset.includeStarterContext,
+                    includeNotesOrContext: preset.includeNotesOrContext
+                )
+            } else {
+                resolvedPreset = SavedPromptPreset(
+                    id: preset.id,
+                    name: trimmedName,
+                    promptKind: preset.promptKind,
+                    mode: preset.mode,
+                    includeProjectSummary: preset.includeProjectSummary,
+                    includeWorkflowFiles: preset.includeWorkflowFiles,
+                    includeStarterContext: preset.includeStarterContext,
+                    includeNotesOrContext: preset.includeNotesOrContext
+                )
+            }
+
+            mergedByName[normalizedKey] = resolvedPreset
+        }
+
+        return Array(mergedByName.values)
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     private func logCreateProjectValidationIssues(prefix: String) {
