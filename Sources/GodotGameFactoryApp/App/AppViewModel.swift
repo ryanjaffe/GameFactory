@@ -338,6 +338,7 @@ final class AppViewModel: ObservableObject {
     private let workflowFileRepairService: WorkflowFileRepairService
     private let workflowSettingsService: ProjectWorkflowSettingsService
     private let promptPresetTransferService: PromptPresetTransferService
+    private let handoffPresetTransferService: HandoffPresetTransferService
     private var hasFinishedInitializing = false
     private var hasLoggedSaveFailure = false
     private var hasSavedSettings = false
@@ -777,7 +778,8 @@ final class AppViewModel: ObservableObject {
         workflowFileService: WorkflowFileService = WorkflowFileService(),
         workflowFileRepairService: WorkflowFileRepairService = WorkflowFileRepairService(),
         workflowSettingsService: ProjectWorkflowSettingsService = ProjectWorkflowSettingsService(),
-        promptPresetTransferService: PromptPresetTransferService = PromptPresetTransferService()
+        promptPresetTransferService: PromptPresetTransferService = PromptPresetTransferService(),
+        handoffPresetTransferService: HandoffPresetTransferService = HandoffPresetTransferService()
     ) {
         self.settingsStore = settingsStore
         self.handoffBundleSettingsStore = handoffBundleSettingsStore
@@ -808,6 +810,7 @@ final class AppViewModel: ObservableObject {
         self.workflowFileRepairService = workflowFileRepairService
         self.workflowSettingsService = workflowSettingsService
         self.promptPresetTransferService = promptPresetTransferService
+        self.handoffPresetTransferService = handoffPresetTransferService
         self.settings = settingsStore.load()
         self.presets = presetStore.load()
         self.savedPromptPresets = savedPromptPresetStore.load()
@@ -1345,6 +1348,48 @@ final class AppViewModel: ObservableObject {
         }
         handoffBundleStatus = .success("Deleted preset.")
         log("Deleted handoff preset '\(preset.name)'.")
+    }
+
+    func exportSavedHandoffPresets() {
+        do {
+            guard let destinationURL = try handoffPresetTransferService.exportPresets(savedHandoffPresets) else {
+                return
+            }
+
+            handoffBundleStatus = .success("Exported presets.")
+            log("Exported \(savedHandoffPresets.count) handoff preset(s) to \(destinationURL.path).")
+        } catch {
+            handoffBundleStatus = .error("Export failed. \(error.localizedDescription)")
+            log("Handoff preset export failed: \(error.localizedDescription)")
+        }
+    }
+
+    func importSavedHandoffPresets() {
+        do {
+            guard let importedPresets = try handoffPresetTransferService.importPresets() else {
+                return
+            }
+
+            let mergedPresets = mergeImportedHandoffPresets(importedPresets, into: savedHandoffPresets)
+            guard savedHandoffPresetStore.save(mergedPresets) else {
+                handoffBundleStatus = .error("Import failed. Could not save presets.")
+                log("Handoff preset import failed: merged presets could not be saved.")
+                return
+            }
+
+            savedHandoffPresets = savedHandoffPresetStore.load()
+            if let selectedSavedHandoffPreset, savedHandoffPresets.contains(selectedSavedHandoffPreset) {
+                selectedSavedHandoffPresetID = selectedSavedHandoffPreset.id
+            } else {
+                selectedSavedHandoffPresetID = savedHandoffPresets.first?.id ?? ""
+            }
+
+            handoffBundleStatus = .success("Imported \(importedPresets.count) preset(s).")
+            log("Imported \(importedPresets.count) handoff preset(s).")
+        } catch {
+            handoffBundleStatus = .error("Import failed. \(error.localizedDescription)")
+            log("Handoff preset import failed: \(error.localizedDescription)")
+        }
     }
 
     func revealActiveProjectInFinder() {
@@ -2127,6 +2172,52 @@ final class AppViewModel: ObservableObject {
                     includeProjectSessionNotes: preset.includeProjectSessionNotes,
                     includeRecentActivityContext: preset.includeRecentActivityContext,
                     recentActivityContextLimit: preset.recentActivityContextLimit
+                )
+            }
+
+            mergedByName[normalizedKey] = resolvedPreset
+        }
+
+        return Array(mergedByName.values)
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private func mergeImportedHandoffPresets(
+        _ importedPresets: [SavedHandoffPreset],
+        into existingPresets: [SavedHandoffPreset]
+    ) -> [SavedHandoffPreset] {
+        var mergedByName = Dictionary(
+            uniqueKeysWithValues: existingPresets.map {
+                ($0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), $0)
+            }
+        )
+
+        for preset in importedPresets {
+            let trimmedName = preset.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedName.isEmpty else {
+                continue
+            }
+
+            let normalizedKey = trimmedName.lowercased()
+            let resolvedPreset: SavedHandoffPreset
+
+            if let existingPreset = mergedByName[normalizedKey] {
+                resolvedPreset = SavedHandoffPreset(
+                    id: existingPreset.id,
+                    name: trimmedName,
+                    selectedMode: preset.selectedMode,
+                    includeProjectSessionNotes: preset.includeProjectSessionNotes,
+                    includeRecentActivity: preset.includeRecentActivity,
+                    recentActivityLimit: preset.recentActivityLimit
+                )
+            } else {
+                resolvedPreset = SavedHandoffPreset(
+                    id: preset.id,
+                    name: trimmedName,
+                    selectedMode: preset.selectedMode,
+                    includeProjectSessionNotes: preset.includeProjectSessionNotes,
+                    includeRecentActivity: preset.includeRecentActivity,
+                    recentActivityLimit: preset.recentActivityLimit
                 )
             }
 

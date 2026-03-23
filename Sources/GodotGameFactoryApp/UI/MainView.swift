@@ -189,6 +189,49 @@ private struct HandoffBundleView: View {
                         }
                     }
 
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Saved Presets")
+                            .fontWeight(.medium)
+
+                        TextField("Preset Name", text: $viewModel.handoffPresetNameDraft)
+
+                        HStack {
+                            Button("Save Preset") {
+                                viewModel.saveCurrentHandoffPreset(named: viewModel.handoffPresetNameDraft)
+                            }
+                            .disabled(!viewModel.canSaveHandoffPreset)
+
+                            Button("Export Presets") {
+                                viewModel.exportSavedHandoffPresets()
+                            }
+
+                            Button("Import Presets") {
+                                viewModel.importSavedHandoffPresets()
+                            }
+
+                            Picker("Saved", selection: $viewModel.selectedSavedHandoffPresetID) {
+                                Text("Select a saved preset").tag("")
+                                ForEach(viewModel.savedHandoffPresets) { preset in
+                                    Text(preset.name).tag(preset.id)
+                                }
+                            }
+
+                            Button("Apply") {
+                                if let preset = viewModel.selectedSavedHandoffPreset {
+                                    viewModel.applySavedHandoffPreset(preset)
+                                }
+                            }
+                            .disabled(viewModel.selectedSavedHandoffPreset == nil)
+
+                            Button("Delete") {
+                                if let preset = viewModel.selectedSavedHandoffPreset {
+                                    viewModel.deleteSavedHandoffPreset(preset)
+                                }
+                            }
+                            .disabled(viewModel.selectedSavedHandoffPreset == nil)
+                        }
+                    }
+
                     Toggle("Include Project Session Notes", isOn: $viewModel.includeProjectSessionNotesInHandoff)
                     Toggle("Include Recent Activity", isOn: $viewModel.includeRecentActivityInHandoff)
 
