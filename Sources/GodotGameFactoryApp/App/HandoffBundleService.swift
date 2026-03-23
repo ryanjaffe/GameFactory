@@ -50,6 +50,14 @@ struct HandoffBundleService {
             """
         } ?? ""
 
+        let validationSection = input.validationSummaryText.map {
+            """
+            ## Validation
+
+            \($0)
+            """
+        } ?? ""
+
         let nextSteps = input.nextSteps.map { "- \($0)" }.joined(separator: "\n")
 
         return """
@@ -80,6 +88,8 @@ struct HandoffBundleService {
 
         \(recentActivitySection)
 
+        \(validationSection)
+
         ## Starter Prompt
 
         \(input.starterPrompt)
@@ -105,6 +115,7 @@ struct HandoffBundleInput {
     let workflowSettingsSummaryText: String?
     let projectSessionNotesText: String?
     let recentActivitySummaryText: String?
+    let validationSummaryText: String?
     let starterPrompt: String
     let nextSteps: [String]
 }

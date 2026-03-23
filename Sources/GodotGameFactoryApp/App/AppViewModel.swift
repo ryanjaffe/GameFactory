@@ -238,6 +238,7 @@ final class AppViewModel: ObservableObject {
     }
     @Published var includeValidationResultInHandoff = false {
         didSet {
+            persistHandoffBundleSettingsIfNeeded()
             clearHandoffBundlePreview()
         }
     }
@@ -2462,6 +2463,7 @@ final class AppViewModel: ObservableObject {
             selectedMode: selectedHandoffBundleMode,
             includeProjectSessionNotes: includeProjectSessionNotesInHandoff,
             includeRecentActivity: includeRecentActivityInHandoff,
+            includeValidationResult: includeValidationResultInHandoff,
             recentActivityLimit: recentActivityInHandoffLimit
         )
     }
@@ -2471,6 +2473,7 @@ final class AppViewModel: ObservableObject {
         selectedHandoffBundleMode = settings.selectedMode
         includeProjectSessionNotesInHandoff = settings.includeProjectSessionNotes
         includeRecentActivityInHandoff = settings.includeRecentActivity
+        includeValidationResultInHandoff = settings.includeValidationResult
         recentActivityInHandoffLimit = settings.recentActivityLimit
         isRestoringHandoffBundleSettings = false
     }
