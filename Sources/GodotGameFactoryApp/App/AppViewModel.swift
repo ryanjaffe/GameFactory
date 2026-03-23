@@ -1408,6 +1408,7 @@ final class AppViewModel: ObservableObject {
         let preset = SavedPromptPreset(
             id: savedPromptPresets.first(where: { $0.name.localizedCaseInsensitiveCompare(trimmedName) == .orderedSame })?.id ?? UUID().uuidString,
             name: trimmedName,
+            promptKind: selectedPromptKind,
             mode: selectedPromptMode,
             includeProjectSummary: includeProjectSummary,
             includeWorkflowFiles: includeWorkflowFiles,
@@ -1434,6 +1435,9 @@ final class AppViewModel: ObservableObject {
     func applySavedPromptPreset(_ preset: SavedPromptPreset) {
         selectedSavedPromptPresetID = preset.id
         promptPresetNameDraft = preset.name
+        if let promptKind = preset.promptKind {
+            selectedPromptKind = promptKind
+        }
         applyPromptPresetConfiguration(preset.configuration)
         promptPackStatus = .success("Applied preset.")
         log("Applied prompt preset '\(preset.name)'.")
