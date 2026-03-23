@@ -91,12 +91,15 @@ struct MainView: View {
                             CodexHandoffStatusView(viewModel: viewModel)
                             RecentProjectsView(viewModel: viewModel)
                         case .settings:
-                            SettingsActiveProjectView(
-                                viewModel: viewModel,
-                                openRecommendationTarget: { target, subsection in
-                                    openRecommendationTarget(target, subsection: subsection, proxy: proxy)
-                                }
-                            )
+                        SettingsActiveProjectView(
+                            viewModel: viewModel,
+                            openRecommendationTarget: { target, subsection in
+                                openRecommendationTarget(target, subsection: subsection, proxy: proxy)
+                            },
+                            performRecommendationAction: { actionKind in
+                                performRecommendationAction(actionKind)
+                            }
+                        )
                             ProjectInspectorView(viewModel: viewModel)
                             ProjectAuditView(viewModel: viewModel)
                             AssetImportView(viewModel: viewModel)
@@ -138,6 +141,15 @@ struct MainView: View {
             withAnimation(.easeInOut(duration: 0.2)) {
                 proxy.scrollTo(subsection, anchor: .top)
             }
+        }
+    }
+
+    private func performRecommendationAction(_ actionKind: ProjectRecommendationActionKind) {
+        switch actionKind {
+        case .runValidation:
+            viewModel.runValidationForActiveProject()
+        case .generatePromptPreview:
+            viewModel.generatePromptPreview()
         }
     }
 }
@@ -1376,6 +1388,7 @@ private struct EmptyStateText: View {
 private struct SettingsActiveProjectView: View {
     @ObservedObject var viewModel: AppViewModel
     let openRecommendationTarget: (ProjectRecommendationTargetSection, ProjectRecommendationSubsectionTarget?) -> Void
+    let performRecommendationAction: (ProjectRecommendationActionKind) -> Void
 
     var body: some View {
         GroupBox("Current Project") {
@@ -1437,7 +1450,11 @@ private struct SettingsActiveProjectView: View {
 
                                     Spacer(minLength: 0)
 
-                                    if let targetSection = recommendation.targetSection {
+                                    if let actionKind = recommendation.actionKind {
+                                        Button(actionKind.buttonTitle) {
+                                            performRecommendationAction(actionKind)
+                                        }
+                                    } else if let targetSection = recommendation.targetSection {
                                         Button("Open") {
                                             openRecommendationTarget(targetSection, recommendation.targetSubsection)
                                         }

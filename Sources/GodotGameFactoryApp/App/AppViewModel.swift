@@ -136,6 +136,7 @@ struct ProjectRecommendation: Identifiable {
     let detail: String
     let targetSection: ProjectRecommendationTargetSection?
     let targetSubsection: ProjectRecommendationSubsectionTarget?
+    let actionKind: ProjectRecommendationActionKind?
 
     var id: String { title }
 }
@@ -151,6 +152,20 @@ enum ProjectRecommendationSubsectionTarget: Hashable {
     case workflowFiles
     case validationCenter
     case handoffBundle
+}
+
+enum ProjectRecommendationActionKind {
+    case runValidation
+    case generatePromptPreview
+
+    var buttonTitle: String {
+        switch self {
+        case .runValidation:
+            return "Run"
+        case .generatePromptPreview:
+            return "Generate"
+        }
+    }
 }
 
 struct HandoffBundleModeConfiguration {
@@ -790,7 +805,8 @@ final class AppViewModel: ObservableObject {
                     title: "Generate workflow files",
                     detail: "\(missingWorkflowFiles.joined(separator: ", ")) \(missingWorkflowFiles.count == 1 ? "is" : "are") missing.",
                     targetSection: .settings,
-                    targetSubsection: .workflowFiles
+                    targetSubsection: .workflowFiles,
+                    actionKind: nil
                 )
             )
         }
@@ -801,7 +817,8 @@ final class AppViewModel: ObservableObject {
                     title: "Run validation",
                     detail: "Validation has not been run from the app yet.",
                     targetSection: .settings,
-                    targetSubsection: .validationCenter
+                    targetSubsection: .validationCenter,
+                    actionKind: .runValidation
                 )
             )
         }
@@ -812,7 +829,8 @@ final class AppViewModel: ObservableObject {
                     title: "Add project notes",
                     detail: "Prompt and handoff context are still limited without project session notes.",
                     targetSection: .newProject,
-                    targetSubsection: .projectSessionNotes
+                    targetSubsection: .projectSessionNotes,
+                    actionKind: nil
                 )
             )
         }
@@ -823,7 +841,8 @@ final class AppViewModel: ObservableObject {
                     title: "Generate a prompt preview",
                     detail: "Prompt context is ready to preview and copy.",
                     targetSection: .newProject,
-                    targetSubsection: .promptPack
+                    targetSubsection: .promptPack,
+                    actionKind: .generatePromptPreview
                 )
             )
         }
@@ -834,7 +853,8 @@ final class AppViewModel: ObservableObject {
                     title: "Strengthen handoff context",
                     detail: "Run an audit, validation, or add notes before copying a handoff bundle.",
                     targetSection: .settings,
-                    targetSubsection: .handoffBundle
+                    targetSubsection: .handoffBundle,
+                    actionKind: nil
                 )
             )
         }
