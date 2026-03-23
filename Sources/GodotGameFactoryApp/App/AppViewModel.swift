@@ -157,6 +157,7 @@ final class AppViewModel: ObservableObject {
     @Published var includeProjectSessionNotes = false {
         didSet { clearPromptPreview() }
     }
+    @Published var includeProjectSessionNotesInHandoff = false
     @Published var includeRecentActivityContext = false {
         didSet { clearPromptPreview() }
     }
@@ -474,6 +475,9 @@ final class AppViewModel: ObservableObject {
         let workflowSettingsDetail = input.workflowSettingsSummaryText == nil
             ? "No workflow settings summary will be included."
             : "Included when project-local workflow settings differ from defaults."
+        let projectSessionNotesDetail = input.projectSessionNotesText == nil
+            ? "No project session notes will be included."
+            : "Included from the active project's saved notes."
 
         return [
             HandoffBundlePreviewItem(title: "Summary", detail: "\(input.projectName) • \(input.templateName)"),
@@ -482,6 +486,7 @@ final class AppViewModel: ObservableObject {
             HandoffBundlePreviewItem(title: "Audit", detail: auditDetail),
             HandoffBundlePreviewItem(title: "Assets", detail: assetsDetail),
             HandoffBundlePreviewItem(title: "Workflow Settings", detail: workflowSettingsDetail),
+            HandoffBundlePreviewItem(title: "Project Session Notes", detail: projectSessionNotesDetail),
             HandoffBundlePreviewItem(title: "Starter Prompt", detail: "Included from the active project's current prompt pack."),
             HandoffBundlePreviewItem(title: "Next Steps", detail: input.nextSteps.joined(separator: " • "))
         ]
@@ -2060,6 +2065,11 @@ final class AppViewModel: ObservableObject {
             inspectedSummary.hasValidationScript ? "run_validation.sh" : nil,
         ].compactMap { $0 }
         let assetInventory = assetPromptContextService.inventorySummary(for: activeProjectURL)
+        let trimmedProjectSessionNotes = projectSessionNotesText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let includedProjectSessionNotesText =
+            includeProjectSessionNotesInHandoff && !trimmedProjectSessionNotes.isEmpty
+            ? trimmedProjectSessionNotes
+            : nil
 
         return HandoffBundleInput(
             projectName: activeProjectName,
@@ -2073,6 +2083,7 @@ final class AppViewModel: ObservableObject {
             assetInventorySummaryText: assetInventory.bundleSummaryText,
             recentAssetImportText: relevantRecentAssetImportText(for: activeProjectURL),
             workflowSettingsSummaryText: workflowSettingsSummaryText(for: activeProjectURL, template: template),
+            projectSessionNotesText: includedProjectSessionNotesText,
             starterPrompt: starterPrompt,
             nextSteps: handoffNextSteps(for: inspectedSummary, template: template)
         )

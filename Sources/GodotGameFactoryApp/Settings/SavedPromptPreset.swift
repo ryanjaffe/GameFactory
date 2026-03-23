@@ -9,6 +9,7 @@ struct SavedPromptPreset: Identifiable, Equatable, Codable {
     let includeWorkflowFiles: Bool
     let includeStarterContext: Bool
     let includeNotesOrContext: Bool
+    let includeProjectSessionNotes: Bool?
     let includeRecentActivityContext: Bool?
     let recentActivityContextLimit: Int?
 
@@ -21,6 +22,7 @@ struct SavedPromptPreset: Identifiable, Equatable, Codable {
         includeWorkflowFiles: Bool,
         includeStarterContext: Bool,
         includeNotesOrContext: Bool,
+        includeProjectSessionNotes: Bool? = nil,
         includeRecentActivityContext: Bool? = nil,
         recentActivityContextLimit: Int? = nil
     ) {
@@ -32,6 +34,7 @@ struct SavedPromptPreset: Identifiable, Equatable, Codable {
         self.includeWorkflowFiles = includeWorkflowFiles
         self.includeStarterContext = includeStarterContext
         self.includeNotesOrContext = includeNotesOrContext
+        self.includeProjectSessionNotes = includeProjectSessionNotes
         self.includeRecentActivityContext = includeRecentActivityContext
         self.recentActivityContextLimit = recentActivityContextLimit
     }
