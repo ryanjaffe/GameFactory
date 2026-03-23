@@ -128,7 +128,7 @@ struct HandoffBundleModeConfiguration {
     let recentActivityLimit: Int
 }
 
-enum HandoffBundleMode: String, CaseIterable, Identifiable {
+enum HandoffBundleMode: String, CaseIterable, Identifiable, Codable {
     case `default`
     case aiHandoff
     case developerSnapshot
@@ -214,15 +214,23 @@ final class AppViewModel: ObservableObject {
     @Published var includeProjectSessionNotes = false {
         didSet { clearPromptPreview() }
     }
-    @Published var selectedHandoffBundleMode: HandoffBundleMode = .default
-    @Published var includeProjectSessionNotesInHandoff = false
-    @Published var includeRecentActivityInHandoff = false
+    @Published var selectedHandoffBundleMode: HandoffBundleMode = .default {
+        didSet { persistHandoffBundleSettingsIfNeeded() }
+    }
+    @Published var includeProjectSessionNotesInHandoff = false {
+        didSet { persistHandoffBundleSettingsIfNeeded() }
+    }
+    @Published var includeRecentActivityInHandoff = false {
+        didSet { persistHandoffBundleSettingsIfNeeded() }
+    }
     @Published var recentActivityInHandoffLimit = 5 {
         didSet {
             let clampedValue = max(1, min(recentActivityInHandoffLimit, 10))
             if recentActivityInHandoffLimit != clampedValue {
                 recentActivityInHandoffLimit = clampedValue
+                return
             }
+            persistHandoffBundleSettingsIfNeeded()
         }
     }
     @Published var includeRecentActivityContext = false {
@@ -300,6 +308,7 @@ final class AppViewModel: ObservableObject {
 
     private let logger: AppLogger
     private let settingsStore: AppSettingsStore
+    private let handoffBundleSettingsStore: HandoffBundleSettingsStore
     private let projectSessionNotesStore: ProjectSessionNotesStore
     private let presetStore: ProjectPresetStore
     private let savedPromptPresetStore: SavedPromptPresetStore
@@ -332,6 +341,7 @@ final class AppViewModel: ObservableObject {
     private var workflowSettingsOriginal = ProjectWorkflowSettings.defaults(for: nil)
     private var workflowSettingsLoadedProjectURL: URL?
     private var isUpdatingWorkflowSettingsDraft = false
+    private var isRestoringHandoffBundleSettings = false
 
     var hasLastCreatedProject: Bool {
         lastCreatedProjectURL != nil
@@ -728,6 +738,7 @@ final class AppViewModel: ObservableObject {
 
     init(
         settingsStore: AppSettingsStore = AppSettingsStore(),
+        handoffBundleSettingsStore: HandoffBundleSettingsStore = HandoffBundleSettingsStore(),
         projectSessionNotesStore: ProjectSessionNotesStore = ProjectSessionNotesStore(),
         presetStore: ProjectPresetStore = ProjectPresetStore(),
         savedPromptPresetStore: SavedPromptPresetStore = SavedPromptPresetStore(),
@@ -756,6 +767,7 @@ final class AppViewModel: ObservableObject {
         promptPresetTransferService: PromptPresetTransferService = PromptPresetTransferService()
     ) {
         self.settingsStore = settingsStore
+        self.handoffBundleSettingsStore = handoffBundleSettingsStore
         self.projectSessionNotesStore = projectSessionNotesStore
         self.presetStore = presetStore
         self.savedPromptPresetStore = savedPromptPresetStore
@@ -790,6 +802,7 @@ final class AppViewModel: ObservableObject {
         self.logEntries = logger.entries
         self.selectedPresetName = presets.first?.name ?? ""
         self.selectedSavedPromptPresetID = savedPromptPresets.first?.id ?? ""
+        applyLoadedHandoffBundleSettings(handoffBundleSettingsStore.load())
 
         log("App initialized")
         log(self.settings == AppSettings.default ? "Using default settings" : "Loaded saved settings")
@@ -2115,6 +2128,32 @@ final class AppViewModel: ObservableObject {
 
     private func clearAssetImport() {
         lastAssetImport = nil
+    }
+
+    private var currentHandoffBundleSettings: HandoffBundleSettings {
+        HandoffBundleSettings(
+            selectedMode: selectedHandoffBundleMode,
+            includeProjectSessionNotes: includeProjectSessionNotesInHandoff,
+            includeRecentActivity: includeRecentActivityInHandoff,
+            recentActivityLimit: recentActivityInHandoffLimit
+        )
+    }
+
+    private func applyLoadedHandoffBundleSettings(_ settings: HandoffBundleSettings) {
+        isRestoringHandoffBundleSettings = true
+        selectedHandoffBundleMode = settings.selectedMode
+        includeProjectSessionNotesInHandoff = settings.includeProjectSessionNotes
+        includeRecentActivityInHandoff = settings.includeRecentActivity
+        recentActivityInHandoffLimit = settings.recentActivityLimit
+        isRestoringHandoffBundleSettings = false
+    }
+
+    private func persistHandoffBundleSettingsIfNeeded() {
+        guard hasFinishedInitializing, !isRestoringHandoffBundleSettings else {
+            return
+        }
+
+        _ = handoffBundleSettingsStore.save(currentHandoffBundleSettings)
     }
 
     private func buildHandoffBundleText() -> String? {
