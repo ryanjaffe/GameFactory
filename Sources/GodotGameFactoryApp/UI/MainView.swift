@@ -257,8 +257,40 @@ private struct HandoffBundleView: View {
                         }
                     }
 
-                    Button("Copy Handoff Bundle") {
-                        viewModel.copyHandoffBundle()
+                    HStack {
+                        Button("Generate Preview") {
+                            viewModel.generateHandoffBundlePreview()
+                        }
+
+                        Button("Copy Handoff Bundle") {
+                            viewModel.copyHandoffBundle()
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Preview Text")
+                            .fontWeight(.medium)
+
+                        if viewModel.hasHandoffBundlePreview {
+                            HStack(spacing: 12) {
+                                Text("Characters: \(viewModel.handoffPreviewCharacterCount)")
+                                Text("Lines: \(viewModel.handoffPreviewLineCount)")
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+
+                        ScrollView {
+                            if viewModel.hasHandoffBundlePreview {
+                                Text(viewModel.handoffBundlePreviewText)
+                                    .textSelection(.enabled)
+                                    .font(.system(.callout, design: .monospaced))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            } else {
+                                EmptyStateText("No handoff preview generated yet. Adjust the options, then click Generate Preview.")
+                            }
+                        }
+                        .frame(minHeight: 180)
                     }
 
                     if let status = viewModel.handoffBundleStatus {

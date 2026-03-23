@@ -209,20 +209,32 @@ final class AppViewModel: ObservableObject {
         didSet { clearPromptPreview() }
     }
     @Published var projectSessionNotesText = "" {
-        didSet { clearPromptPreview() }
+        didSet {
+            clearPromptPreview()
+            clearHandoffBundlePreview()
+        }
     }
     @Published var includeProjectSessionNotes = false {
         didSet { clearPromptPreview() }
     }
     @Published var handoffPresetNameDraft = ""
     @Published var selectedHandoffBundleMode: HandoffBundleMode = .default {
-        didSet { persistHandoffBundleSettingsIfNeeded() }
+        didSet {
+            persistHandoffBundleSettingsIfNeeded()
+            clearHandoffBundlePreview()
+        }
     }
     @Published var includeProjectSessionNotesInHandoff = false {
-        didSet { persistHandoffBundleSettingsIfNeeded() }
+        didSet {
+            persistHandoffBundleSettingsIfNeeded()
+            clearHandoffBundlePreview()
+        }
     }
     @Published var includeRecentActivityInHandoff = false {
-        didSet { persistHandoffBundleSettingsIfNeeded() }
+        didSet {
+            persistHandoffBundleSettingsIfNeeded()
+            clearHandoffBundlePreview()
+        }
     }
     @Published var recentActivityInHandoffLimit = 5 {
         didSet {
@@ -232,6 +244,7 @@ final class AppViewModel: ObservableObject {
                 return
             }
             persistHandoffBundleSettingsIfNeeded()
+            clearHandoffBundlePreview()
         }
     }
     @Published var includeRecentActivityContext = false {
@@ -302,6 +315,7 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var workflowSettingsStatusMessage = ""
     @Published private(set) var workflowSettingsHasUnsavedChanges = false
     @Published private(set) var workflowSettingsUsingDefaults = true
+    @Published var handoffBundlePreviewText = ""
     @Published private(set) var createProjectStatus: UIStatusMessage?
     @Published private(set) var promptPackStatus: UIStatusMessage?
     @Published private(set) var handoffBundleStatus: UIStatusMessage?
@@ -539,7 +553,7 @@ final class AppViewModel: ObservableObject {
     }
 
     var activeHandoffBundleText: String? {
-        buildHandoffBundleText()
+        assembledHandoffBundleText()
     }
 
     var handoffBundlePreviewItems: [HandoffBundlePreviewItem] {
@@ -581,6 +595,22 @@ final class AppViewModel: ObservableObject {
 
     var hasWorkflowFileTarget: Bool {
         workflowFileTargetProjectURL != nil
+    }
+
+    var hasHandoffBundlePreview: Bool {
+        !handoffBundlePreviewText.isEmpty
+    }
+
+    var handoffPreviewCharacterCount: Int {
+        handoffBundlePreviewText.count
+    }
+
+    var handoffPreviewLineCount: Int {
+        guard hasHandoffBundlePreview else {
+            return 0
+        }
+
+        return handoffBundlePreviewText.components(separatedBy: .newlines).count
     }
 
     var hasWorkflowSettingsTarget: Bool {
@@ -878,6 +908,7 @@ final class AppViewModel: ObservableObject {
             clearWorkflowEditor()
             clearProjectAudit()
             clearAssetImport()
+            clearHandoffBundlePreview()
             loadWorkflowSettings(for: result.finalProjectURL, template: settings.template)
             loadProjectSessionNotesForActiveProject()
             for message in result.messages {
@@ -1020,6 +1051,7 @@ final class AppViewModel: ObservableObject {
         inspectedProjectSummary = summary
         clearProjectAudit()
         clearAssetImport()
+        clearHandoffBundlePreview()
         loadWorkflowSettings(for: selectedProjectURL, template: summary.detectedTemplate)
         loadProjectSessionNotesForActiveProject()
 
@@ -1055,6 +1087,7 @@ final class AppViewModel: ObservableObject {
         clearWorkflowEditor()
         clearProjectAudit()
         clearAssetImport()
+        clearHandoffBundlePreview()
         loadWorkflowSettings(for: project.projectURL, template: project.template)
         loadProjectSessionNotesForActiveProject()
         log("Workflow file target set to \(project.projectName).")
@@ -1082,6 +1115,7 @@ final class AppViewModel: ObservableObject {
         clearWorkflowEditor()
         clearProjectAudit()
         clearAssetImport()
+        clearHandoffBundlePreview()
         loadWorkflowSettings(for: inspectedProjectSummary.projectURL, template: inspectedProjectSummary.detectedTemplate)
         loadProjectSessionNotesForActiveProject()
         log("Workflow file target set to inspected project \(inspectedProjectSummary.projectName).")
@@ -1267,8 +1301,9 @@ final class AppViewModel: ObservableObject {
     }
 
     func copyHandoffBundle() {
-        guard let bundleText = buildHandoffBundleText() else {
+        guard let bundleText = handoffBundlePreviewOrGeneratedText() else {
             log("Handoff bundle skipped: no project is selected.")
+            handoffBundleStatus = .error("No active project is available for handoff.")
             return
         }
 
@@ -1280,6 +1315,18 @@ final class AppViewModel: ObservableObject {
             log("Handoff bundle failed: \(error.localizedDescription)")
             handoffBundleStatus = .error("Could not copy handoff bundle. \(error.localizedDescription)")
         }
+    }
+
+    func generateHandoffBundlePreview() {
+        guard let bundleText = assembledHandoffBundleText() else {
+            log("Handoff preview skipped: no project is selected.")
+            handoffBundleStatus = .error("No active project is available for handoff.")
+            return
+        }
+
+        handoffBundlePreviewText = bundleText
+        log("Handoff preview generated for \(activeProjectName).")
+        handoffBundleStatus = .success("Handoff preview generated.")
     }
 
     func applyHandoffBundleMode(_ mode: HandoffBundleMode) {
@@ -2290,6 +2337,7 @@ final class AppViewModel: ObservableObject {
         selectedWorkflowProjectURL = nil
         selectedWorkflowProjectName = nil
         selectedWorkflowProjectTemplate = nil
+        clearHandoffBundlePreview()
     }
 
     private func clearProjectAudit() {
@@ -2298,6 +2346,10 @@ final class AppViewModel: ObservableObject {
 
     private func clearAssetImport() {
         lastAssetImport = nil
+    }
+
+    private func clearHandoffBundlePreview() {
+        handoffBundlePreviewText = ""
     }
 
     private var currentHandoffBundleSettings: HandoffBundleSettings {
@@ -2326,12 +2378,20 @@ final class AppViewModel: ObservableObject {
         _ = handoffBundleSettingsStore.save(currentHandoffBundleSettings)
     }
 
-    private func buildHandoffBundleText() -> String? {
+    private func assembledHandoffBundleText() -> String? {
         guard let input = buildHandoffBundleInput() else {
             return nil
         }
 
         return handoffBundleService.buildBundle(from: input)
+    }
+
+    private func handoffBundlePreviewOrGeneratedText() -> String? {
+        if hasHandoffBundlePreview {
+            return handoffBundlePreviewText
+        }
+
+        return assembledHandoffBundleText()
     }
 
     private func buildHandoffBundleInput() -> HandoffBundleInput? {
