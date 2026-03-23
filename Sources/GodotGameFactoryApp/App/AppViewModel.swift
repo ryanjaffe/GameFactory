@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum PromptPackMode: String, CaseIterable, Identifiable {
+enum PromptPackMode: String, CaseIterable, Identifiable, Codable {
     case standard
     case planning
     case implementation
@@ -147,7 +147,9 @@ final class AppViewModel: ObservableObject {
         didSet { clearPromptPreview() }
     }
     @Published var promptPackPreviewText = ""
+    @Published var promptPresetNameDraft = ""
     @Published var selectedPromptPreset: PromptPackPreset = .default
+    @Published var selectedSavedPromptPresetID = ""
     @Published var selectedPromptMode: PromptPackMode = .standard {
         didSet { clearPromptPreview() }
     }
@@ -169,6 +171,7 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var recentProjects: [RecentProject]
     @Published private(set) var codexHandoffMessage: String?
     @Published private(set) var presets: [ProjectPreset]
+    @Published private(set) var savedPromptPresets: [SavedPromptPreset]
     @Published private(set) var inspectedProjectSummary: InspectedProjectSummary?
     @Published private(set) var lastProjectAudit: ProjectAuditSummary?
     @Published private(set) var lastAssetImport: AssetImportSummary?
@@ -208,6 +211,7 @@ final class AppViewModel: ObservableObject {
     private let logger: AppLogger
     private let settingsStore: AppSettingsStore
     private let presetStore: ProjectPresetStore
+    private let savedPromptPresetStore: SavedPromptPresetStore
     private let recentProjectsStore: RecentProjectsStore
     private let generator: ProjectGenerator
     private let gitService: GitService
@@ -567,6 +571,14 @@ final class AppViewModel: ObservableObject {
         !presetNameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    var canSavePromptPreset: Bool {
+        !promptPresetNameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var selectedSavedPromptPreset: SavedPromptPreset? {
+        savedPromptPresets.first(where: { $0.id == selectedSavedPromptPresetID })
+    }
+
     var selectedPrompt: CodexPrompt? {
         availablePromptPack.first(where: { $0.kind == selectedPromptKind }) ?? availablePromptPack.first
     }
@@ -578,6 +590,7 @@ final class AppViewModel: ObservableObject {
     init(
         settingsStore: AppSettingsStore = AppSettingsStore(),
         presetStore: ProjectPresetStore = ProjectPresetStore(),
+        savedPromptPresetStore: SavedPromptPresetStore = SavedPromptPresetStore(),
         recentProjectsStore: RecentProjectsStore = RecentProjectsStore(),
         logger: AppLogger = AppLogger(),
         generator: ProjectGenerator = ProjectGenerator(),
@@ -603,6 +616,7 @@ final class AppViewModel: ObservableObject {
     ) {
         self.settingsStore = settingsStore
         self.presetStore = presetStore
+        self.savedPromptPresetStore = savedPromptPresetStore
         self.recentProjectsStore = recentProjectsStore
         self.logger = logger
         self.generator = generator
@@ -627,10 +641,12 @@ final class AppViewModel: ObservableObject {
         self.workflowSettingsService = workflowSettingsService
         self.settings = settingsStore.load()
         self.presets = presetStore.load()
+        self.savedPromptPresets = savedPromptPresetStore.load()
         self.recentProjects = recentProjectsStore.load()
         self.assetStarterPacks = assetStarterPackService.availablePacks()
         self.logEntries = logger.entries
         self.selectedPresetName = presets.first?.name ?? ""
+        self.selectedSavedPromptPresetID = savedPromptPresets.first?.id ?? ""
 
         log("App initialized")
         log(self.settings == AppSettings.default ? "Using default settings" : "Loaded saved settings")
@@ -643,6 +659,9 @@ final class AppViewModel: ObservableObject {
         }
         if !presets.isEmpty {
             log("Loaded \(presets.count) presets")
+        }
+        if !savedPromptPresets.isEmpty {
+            log("Loaded \(savedPromptPresets.count) saved prompt presets")
         }
         hasFinishedInitializing = true
     }
@@ -1372,6 +1391,68 @@ final class AppViewModel: ObservableObject {
         selectedPromptPreset = preset
 
         let configuration = preset.configuration
+        applyPromptPresetConfiguration(configuration)
+    }
+
+    func saveCurrentPromptPreset(named desiredName: String) {
+        let trimmedName = desiredName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            promptPackStatus = .error("Preset name is required.")
+            log("Saved prompt preset skipped: preset name is required.")
+            return
+        }
+
+        let preset = SavedPromptPreset(
+            id: savedPromptPresets.first(where: { $0.name.localizedCaseInsensitiveCompare(trimmedName) == .orderedSame })?.id ?? UUID().uuidString,
+            name: trimmedName,
+            mode: selectedPromptMode,
+            includeProjectSummary: includeProjectSummary,
+            includeWorkflowFiles: includeWorkflowFiles,
+            includeStarterContext: includeStarterContext,
+            includeNotesOrContext: includeNotesOrContext
+        )
+
+        let isUpdate = savedPromptPresets.contains { $0.name.localizedCaseInsensitiveCompare(trimmedName) == .orderedSame }
+        let updatedPresets = savedPromptPresets.filter { $0.name.localizedCaseInsensitiveCompare(trimmedName) != .orderedSame } + [preset]
+
+        guard savedPromptPresetStore.save(updatedPresets) else {
+            promptPackStatus = .error("Could not save preset.")
+            log("Saved prompt preset failed for '\(trimmedName)'.")
+            return
+        }
+
+        savedPromptPresets = savedPromptPresetStore.load()
+        selectedSavedPromptPresetID = preset.id
+        promptPresetNameDraft = preset.name
+        promptPackStatus = .success(isUpdate ? "Updated preset." : "Saved preset.")
+        log("\(isUpdate ? "Updated" : "Saved") prompt preset '\(preset.name)'.")
+    }
+
+    func applySavedPromptPreset(_ preset: SavedPromptPreset) {
+        selectedSavedPromptPresetID = preset.id
+        promptPresetNameDraft = preset.name
+        applyPromptPresetConfiguration(preset.configuration)
+        promptPackStatus = .success("Applied preset.")
+        log("Applied prompt preset '\(preset.name)'.")
+    }
+
+    func deleteSavedPromptPreset(_ preset: SavedPromptPreset) {
+        let updatedPresets = savedPromptPresets.filter { $0.id != preset.id }
+        guard savedPromptPresetStore.save(updatedPresets) else {
+            promptPackStatus = .error("Could not delete preset.")
+            log("Delete prompt preset failed for '\(preset.name)'.")
+            return
+        }
+
+        savedPromptPresets = savedPromptPresetStore.load()
+        if selectedSavedPromptPresetID == preset.id {
+            selectedSavedPromptPresetID = savedPromptPresets.first?.id ?? ""
+        }
+        promptPackStatus = .success("Deleted preset.")
+        log("Deleted prompt preset '\(preset.name)'.")
+    }
+
+    private func applyPromptPresetConfiguration(_ configuration: PromptPackPresetConfiguration) {
         selectedPromptMode = configuration.mode
         includeProjectSummary = configuration.includeProjectSummary
         includeWorkflowFiles = configuration.includeWorkflowFiles

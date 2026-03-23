@@ -574,6 +574,41 @@ private struct PromptPackView: View {
                         }
                     }
 
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Saved Presets")
+                            .fontWeight(.medium)
+
+                        TextField("Preset Name", text: $viewModel.promptPresetNameDraft)
+
+                        HStack {
+                            Button("Save Preset") {
+                                viewModel.saveCurrentPromptPreset(named: viewModel.promptPresetNameDraft)
+                            }
+                            .disabled(!viewModel.canSavePromptPreset)
+
+                            Picker("Saved", selection: $viewModel.selectedSavedPromptPresetID) {
+                                Text("Select a saved preset").tag("")
+                                ForEach(viewModel.savedPromptPresets) { preset in
+                                    Text(preset.name).tag(preset.id)
+                                }
+                            }
+
+                            Button("Apply") {
+                                if let preset = viewModel.selectedSavedPromptPreset {
+                                    viewModel.applySavedPromptPreset(preset)
+                                }
+                            }
+                            .disabled(viewModel.selectedSavedPromptPreset == nil)
+
+                            Button("Delete") {
+                                if let preset = viewModel.selectedSavedPromptPreset {
+                                    viewModel.deleteSavedPromptPreset(preset)
+                                }
+                            }
+                            .disabled(viewModel.selectedSavedPromptPreset == nil)
+                        }
+                    }
+
                     Picker("Mode", selection: $viewModel.selectedPromptMode) {
                         ForEach(PromptPackMode.allCases) { mode in
                             Text(mode.title).tag(mode)
