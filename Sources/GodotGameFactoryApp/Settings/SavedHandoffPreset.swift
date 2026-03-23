@@ -6,6 +6,7 @@ struct SavedHandoffPreset: Identifiable, Equatable, Codable {
     let selectedMode: HandoffBundleMode
     let includeProjectSessionNotes: Bool
     let includeRecentActivity: Bool
+    let includeValidationResult: Bool?
     let recentActivityLimit: Int
 
     init(
@@ -14,6 +15,7 @@ struct SavedHandoffPreset: Identifiable, Equatable, Codable {
         selectedMode: HandoffBundleMode,
         includeProjectSessionNotes: Bool,
         includeRecentActivity: Bool,
+        includeValidationResult: Bool? = nil,
         recentActivityLimit: Int
     ) {
         self.id = id
@@ -21,6 +23,7 @@ struct SavedHandoffPreset: Identifiable, Equatable, Codable {
         self.selectedMode = selectedMode
         self.includeProjectSessionNotes = includeProjectSessionNotes
         self.includeRecentActivity = includeRecentActivity
+        self.includeValidationResult = includeValidationResult
         self.recentActivityLimit = max(1, min(recentActivityLimit, 10))
     }
 }

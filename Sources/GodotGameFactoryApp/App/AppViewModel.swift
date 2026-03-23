@@ -256,6 +256,9 @@ final class AppViewModel: ObservableObject {
     @Published var includeRecentActivityContext = false {
         didSet { clearPromptPreview() }
     }
+    @Published var includeValidationResultInPrompt = false {
+        didSet { clearPromptPreview() }
+    }
     @Published var recentActivityContextLimit = 5 {
         didSet {
             let clampedValue = max(1, min(recentActivityContextLimit, 10))
@@ -1617,6 +1620,7 @@ final class AppViewModel: ObservableObject {
         guard FileManager.default.fileExists(atPath: scriptURL.path) else {
             log("Validation skipped: run_validation.sh is missing for \(activeProjectName).")
             validationOutputText = ""
+            clearPromptPreview()
             clearHandoffBundlePreview()
             validationStatus = .error("run_validation.sh not found.")
             return
@@ -1625,6 +1629,7 @@ final class AppViewModel: ObservableObject {
         validationIsRunning = true
         validationStatus = nil
         validationOutputText = ""
+        clearPromptPreview()
         clearHandoffBundlePreview()
         log("Validation started for \(activeProjectName).")
         let validationRunnerService = self.validationRunnerService
@@ -1639,6 +1644,7 @@ final class AppViewModel: ObservableObject {
                 validationLastSucceeded = result.succeeded
                 validationLastRunDate = Date()
                 validationOutputText = result.combinedOutput
+                clearPromptPreview()
                 clearHandoffBundlePreview()
 
                 if result.succeeded {
@@ -1653,6 +1659,7 @@ final class AppViewModel: ObservableObject {
                 validationLastSucceeded = false
                 validationLastRunDate = Date()
                 validationOutputText = error.localizedDescription
+                clearPromptPreview()
                 clearHandoffBundlePreview()
                 log("Validation could not be started: \(error.localizedDescription)")
                 validationStatus = .error("Validation could not be started. \(error.localizedDescription)")
@@ -2221,6 +2228,10 @@ final class AppViewModel: ObservableObject {
             body += "\n\n\(recentActivityContextText)"
         }
 
+        if let validationResultContextText {
+            body += "\n\n\(validationResultContextText)"
+        }
+
         guard let promptHeader = selectedPromptMode.promptHeader else {
             return body
         }
@@ -2271,6 +2282,26 @@ final class AppViewModel: ObservableObject {
 
         let lines = recentMessages.map { "- \($0)" }.joined(separator: "\n")
         return "Recent Activity\n\(lines)"
+    }
+
+    private var validationResultContextText: String? {
+        guard includeValidationResultInPrompt, let validationLastSucceeded else {
+            return nil
+        }
+
+        let resultText = validationLastSucceeded ? "Passed" : "Failed"
+        let lastRunText = validationLastRunDate?.formatted(date: .abbreviated, time: .shortened) ?? "Unknown"
+        let trimmedOutput = validationOutputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let outputText = trimmedOutput.isEmpty ? "No output captured." : trimmedOutput
+
+        return """
+        Validation
+        Result: \(resultText)
+        Last Run: \(lastRunText)
+
+        Output:
+        \(outputText)
+        """
     }
 
     private func mergeImportedPromptPresets(
@@ -2457,6 +2488,7 @@ final class AppViewModel: ObservableObject {
         validationLastRunDate = nil
         validationOutputText = ""
         validationStatus = nil
+        clearPromptPreview()
         clearHandoffBundlePreview()
     }
 
